@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Generator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #f4f4f5;
+    color: #1a1a1a;
+    padding: 16px;
+    line-height: 1.4;
+  }
+  .container {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .canvas-wrap {
+    background: #fff;
+    border: 1px solid #d4d4d8;
+    border-radius: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 80vh;
+    height: auto;
+    object-fit: contain;
+  }
+  .controls {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .control-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+  }
+  .control-group input[type="number"],
+  .control-group input[type="text"] {
+    padding: 7px 10px;
+    border: 1px solid #d4d4d8;
+    border-radius: 5px;
+    font-size: 14px;
+    width: 100%;
+    background: #fff;
+    color: #1a1a1a;
+  }
+  .control-group input:focus {
+    outline: none;
+    border-color: #888;
+    box-shadow: 0 0 0 2px rgba(136,136,136,0.15);
+  }
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .color-row input[type="color"] {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border: 1px solid #d4d4d8;
+    border-radius: 5px;
+    padding: 3px;
+    cursor: pointer;
+    background: #fff;
+  }
+  .color-row input[type="text"] {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #d4d4d8;
+    border-radius: 5px;
+    font-size: 14px;
+    font-family: monospace;
+    background: #fff;
+    color: #1a1a1a;
+  }
+  .color-row input[type="text"]:focus {
+    outline: none;
+    border-color: #888;
+    box-shadow: 0 0 0 2px rgba(136,136,136,0.15);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="canvas-wrap">
+    <canvas id="gridCanvas"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="inpW">Width (px)</label>
+      <input type="text" id="inpW" value="2400">
+    </div>
+    <div class="control-group">
+      <label for="inpH">Height (px)</label>
+      <input type="text" id="inpH" value="2400">
+    </div>
+    <div class="control-group">
+      <label for="inpRows">Rows</label>
+      <input type="number" id="inpRows" value="10" min="1" max="10000" step="1">
+    </div>
+    <div class="control-group">
+      <label for="inpCols">Columns</label>
+      <input type="number" id="inpCols" value="10" min="1" max="10000" step="1">
+    </div>
+    <div class="control-group">
+      <label for="inpLW">Line Width (px)</label>
+      <input type="number" id="inpLW" value="2" min="1" max="200" step="1">
+    </div>
+    <div class="control-group">
+      <label>Colour</label>
+      <div class="color-row">
+        <input type="color" id="inpColorPick" value="#888888">
+        <input type="text" id="inpColorText" value="#888888">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('gridCanvas');
+  var ctx = canvas.getContext('2d');
+  var elW = document.getElementById('inpW');
+  var elH = document.getElementById('inpH');
+  var elRows = document.getElementById('inpRows');
+  var elCols = document.getElementById('inpCols');
+  var elLW = document.getElementById('inpLW');
+  var elCP = document.getElementById('inpColorPick');
+  var elCT = document.getElementById('inpColorText');
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+  function readParams() {
+    var w = parseInt(elW.value, 10);
+    var h = parseInt(elH.value, 10);
+    var rows = parseInt(elRows.value, 10);
+    var cols = parseInt(elCols.value, 10);
+    var lw = parseInt(elLW.value, 10);
+    return {
+      w: clamp(w || 2400, 1, 30000),
+      h: clamp(h || 2400, 1, 30000),
+      rows: clamp(rows || 10, 1, 10000),
+      cols: clamp(cols || 10, 1, 10000),
+      lw: clamp(lw || 2, 1, 200),
+      color: elCT.value || '#888888'
+    };
+  }
+
+  function draw() {
+    var p = readParams();
+    canvas.width = p.w;
+    canvas.height = p.h;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, p.w, p.h);
+
+    var vLines = p.cols + 1;
+    var hLines = p.rows + 1;
+    var cellW = Math.floor((p.w - vLines * p.lw) / p.cols);
+    var cellH = Math.floor((p.h - hLines * p.lw) / p.rows);
+    if (cellW < 1 || cellH < 1) return;
+
+    var gridW = p.cols * cellW + vLines * p.lw;
+    var gridH = p.rows * cellH + hLines * p.lw;
+    var ox = Math.floor((p.w - gridW) / 2);
+    var oy = Math.floor((p.h - gridH) / 2);
+
+    ctx.fillStyle = p.color;
+
+    for (var c = 0; c <= p.cols; c++) {
+      var x = ox + c * (cellW + p.lw);
+      ctx.fillRect(x, oy, p.lw, gridH);
+    }
+    for (var r = 0; r <= p.rows; r++) {
+      var y = oy + r * (cellH + p.lw);
+      ctx.fillRect(ox, y, gridW, p.lw);
+    }
+  }
+
+  elCP.addEventListener('input', function () {
+    elCT.value = elCP.value;
+    draw();
+  });
+  elCT.addEventListener('input', function () {
+    if (/^#[0-9a-fA-F]{6}$/.test(elCT.value)) {
+      elCP.value = elCT.value;
+    }
+    draw();
+  });
+
+  [elW, elH, elRows, elCols, elLW].forEach(function (el) {
+    el.addEventListener('input', draw);
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>

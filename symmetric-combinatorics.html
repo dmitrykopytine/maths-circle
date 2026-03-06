@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Symmetric Combinatorics</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f4f4f4;
+  padding: 16px;
+}
+.canvas-wrap {
+  margin-bottom: 20px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.field select,
+.field input[type="text"],
+.field input[type="number"] {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 14px;
+  background: #fff;
+  min-width: 0;
+}
+.field select { width: 220px; }
+.field input[type="text"] { width: 80px; }
+.field input[type="number"] { width: 80px; }
+.colour-pair {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.colour-pair input[type="color"] {
+  width: 32px;
+  height: 30px;
+  padding: 1px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  cursor: pointer;
+  background: none;
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(10, 24px);
+  gap: 3px;
+}
+.swatch-placeholder {
+  width: 24px;
+  height: 24px;
+}
+.swatch {
+  width: 24px;
+  height: 24px;
+  border: 2px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  outline: 1px solid #ccc;
+}
+.swatch.active {
+  border-color: #333;
+  outline-color: #333;
+}
+@media (max-width: 480px) {
+  body { padding: 8px; }
+  .field select,
+  .field input[type="text"],
+  .field input[type="number"] {
+    font-size: 16px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="controls">
+  <div class="field">
+    <label>Image</label>
+    <select id="figure">
+      <option value="grid2x2">Grid 2×2</option>
+      <option value="grid3x3">Grid 3×3</option>
+      <option value="grid4x3">Grid 4×3</option>
+      <option value="grid5x5">Grid 5×5</option>
+      <option value="grid5x5c">Grid 5×5 (circles)</option>
+      <option value="star5">5-point Star</option>
+      <option value="star5beads">5-point Star with beads</option>
+      <option value="hexagon">Hexagon</option>
+      <option value="octagon">Octagon</option>
+      <option value="squares5">5 Squares</option>
+      <option value="table4">Round table – 4 plates</option>
+      <option value="table5">Round table – 5 plates</option>
+      <option value="table6">Round table – 6 plates</option>
+      <option value="bracelet4">Bracelet – 4 beads</option>
+      <option value="bracelet5">Bracelet – 5 beads</option>
+      <option value="bracelet6">Bracelet – 6 beads</option>
+      <option value="squareBeads">Square with beads</option>
+      <option value="house5">House – 5 windows</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Width</label>
+    <input type="text" id="cwidth" value="2400">
+  </div>
+  <div class="field">
+    <label>Height</label>
+    <input type="text" id="cheight" value="2400">
+  </div>
+  <div class="field">
+    <label>Gap X</label>
+    <input type="number" id="gapx" value="60" min="0">
+  </div>
+  <div class="field">
+    <label>Gap Y</label>
+    <input type="number" id="gapy" value="60" min="0">
+  </div>
+  <div class="field">
+    <label>Line Width</label>
+    <input type="number" id="linewidth" value="2" min="1" step="1">
+  </div>
+  <div class="field">
+    <label>Colour</label>
+    <div class="colour-pair">
+      <input type="text" id="colour" value="#888888" maxlength="7" style="font-family:monospace">
+      <input type="color" id="colourPicker" value="#888888">
+    </div>
+  </div>
+  <div class="field">
+    <label>Reps X</label>
+    <input type="number" id="repsx" value="5" min="1">
+  </div>
+  <div class="field">
+    <label>Background</label>
+    <input type="hidden" id="bg1" value="#ffffff">
+    <div class="swatches" data-for="bg1"></div>
+  </div>
+  <div class="field" id="bg2Field" style="display:none">
+    <label>BG 2 (inner)</label>
+    <input type="hidden" id="bg2" value="#ffffff">
+    <div class="swatches" data-for="bg2"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+
+  function intVal(id, fallback) {
+    var v = parseInt(document.getElementById(id).value, 10);
+    return isNaN(v) || v < 1 ? fallback : v;
+  }
+
+  function figureAspect(figure) {
+    switch (figure) {
+      case 'grid4x3':  return 3 / 4;
+      case 'squares5': return 2 / 5;
+      default: return 1;
+    }
+  }
+
+  function draw() {
+    var figure = document.getElementById('figure').value;
+    var W      = parseInt(document.getElementById('cwidth').value, 10) || 2400;
+    var H      = parseInt(document.getElementById('cheight').value, 10) || 2400;
+    var gapX   = Math.max(0, parseInt(document.getElementById('gapx').value, 10) || 0);
+    var gapY   = Math.max(0, parseInt(document.getElementById('gapy').value, 10) || 0);
+    var lw     = Math.max(0.5, parseFloat(document.getElementById('linewidth').value) || 2);
+    var colour = document.getElementById('colour').value;
+    if (!/^#[0-9a-fA-F]{6}$/.test(colour)) colour = '#888888';
+    var bg1    = document.getElementById('bg1').value;
+    var bg2    = document.getElementById('bg2').value;
+    var repsX  = intVal('repsx', 5);
+
+    if (W < 1) W = 2400;
+    if (H < 1) H = 2400;
+
+    canvas.width = W;
+    canvas.height = H;
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+
+    var margin = 2;
+    var cellW = (W - 2 * margin - Math.max(0, repsX - 1) * gapX) / repsX;
+    var cellH = cellW * figureAspect(figure);
+    if (cellW <= 0 || cellH <= 0) return;
+
+    var repsY = Math.max(1, Math.floor((H - 2 * margin + gapY) / (cellH + gapY)));
+
+    for (var j = 0; j < repsY; j++) {
+      for (var i = 0; i < repsX; i++) {
+        var ox = margin + i * (cellW + gapX);
+        var oy = margin + j * (cellH + gapY);
+
+        ctx.save();
+        ctx.strokeStyle = colour;
+        ctx.fillStyle = colour;
+        ctx.lineWidth = lw;
+        ctx.lineJoin = 'miter';
+        ctx.lineCap = 'butt';
+        ctx.setLineDash([]);
+
+        switch (figure) {
+          case 'grid2x2':    drawGrid(ox, oy, cellW, cellH, 2, 2, lw, bg1); break;
+          case 'grid3x3':    drawGrid(ox, oy, cellW, cellH, 3, 3, lw, bg1); break;
+          case 'grid4x3':    drawGrid(ox, oy, cellW, cellH, 4, 3, lw, bg1); break;
+          case 'grid5x5':    drawGrid(ox, oy, cellW, cellH, 5, 5, lw, bg1); break;
+          case 'grid5x5c':   drawGrid5x5Circles(ox, oy, cellW, cellH, lw, bg1, bg2); break;
+          case 'star5':      drawStar(ox, oy, cellW, cellH, lw, bg1); break;
+          case 'star5beads': drawStarBeads(ox, oy, cellW, cellH, lw, bg1); break;
+          case 'hexagon':    drawPoly(ox, oy, cellW, cellH, 6, lw); break;
+          case 'octagon':    drawPoly(ox, oy, cellW, cellH, 8, lw); break;
+          case 'squares5':   drawFiveSquares(ox, oy, cellW, cellH, lw, bg1); break;
+          case 'table4':     drawRoundTable(ox, oy, cellW, cellH, 4, lw, bg1); break;
+          case 'table5':     drawRoundTable(ox, oy, cellW, cellH, 5, lw, bg1); break;
+          case 'table6':     drawRoundTable(ox, oy, cellW, cellH, 6, lw, bg1); break;
+          case 'bracelet4':  drawBracelet(ox, oy, cellW, cellH, 4, lw); break;
+          case 'bracelet5':  drawBracelet(ox, oy, cellW, cellH, 5, lw); break;
+          case 'bracelet6':  drawBracelet(ox, oy, cellW, cellH, 6, lw); break;
+          case 'squareBeads': drawSquareBeads(ox, oy, cellW, cellH, lw, bg1); break;
+          case 'house5':     drawHouse(ox, oy, cellW, cellH, lw, bg1); break;
+        }
+
+        ctx.restore();
+      }
+    }
+  }
+
+  /* ---- figure renderers ---- */
+
+  function drawGrid(x, y, w, h, cols, rows, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var s = Math.min(w / cols, h / rows);
+    var gw = cols * s, gh = rows * s;
+    var gx = x + (w - gw) / 2;
+    var gy = y + (h - gh) / 2;
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(gx, gy, gw, gh); }
+    ctx.strokeRect(gx, gy, gw, gh);
+    for (var c = 1; c < cols; c++) {
+      var lx = gx + s * c;
+      ctx.beginPath(); ctx.moveTo(lx, gy); ctx.lineTo(lx, gy + gh); ctx.stroke();
+    }
+    for (var r = 1; r < rows; r++) {
+      var ly = gy + s * r;
+      ctx.beginPath(); ctx.moveTo(gx, ly); ctx.lineTo(gx + gw, ly); ctx.stroke();
+    }
+  }
+
+  function drawGrid5x5Circles(x, y, w, h, lw, bg1, bg2) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var s = Math.min(w / 5, h / 5);
+    var gw = 5 * s, gh = 5 * s;
+    var gx = x + (w - gw) / 2;
+    var gy = y + (h - gh) / 2;
+
+    for (var r = 0; r < 5; r++) {
+      for (var c = 0; c < 5; c++) {
+        var ring = Math.min(r, c, 4 - r, 4 - c);
+        if (ring === 0) ctx.fillStyle = bg1;
+        else if (ring === 1) ctx.fillStyle = bg2;
+        else continue;
+        ctx.fillRect(gx + c * s, gy + r * s, s, s);
+      }
+    }
+
+    ctx.strokeRect(gx, gy, gw, gh);
+    for (var c = 1; c < 5; c++) {
+      var lx = gx + s * c;
+      ctx.beginPath(); ctx.moveTo(lx, gy); ctx.lineTo(lx, gy + gh); ctx.stroke();
+    }
+    for (var r = 1; r < 5; r++) {
+      var ly = gy + s * r;
+      ctx.beginPath(); ctx.moveTo(gx, ly); ctx.lineTo(gx + gw, ly); ctx.stroke();
+    }
+  }
+
+  function drawStar(x, y, w, h, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cx = x + w / 2;
+    var cy = y + h / 2;
+    var r = Math.min(w, h) / 2;
+    var inner = r * 0.381966;
+
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 5;
+      var rad = i % 2 === 0 ? r : inner;
+      var px = cx + rad * Math.cos(a);
+      var py = cy + rad * Math.sin(a);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    if (bg) { ctx.fillStyle = bg; ctx.fill(); }
+    ctx.stroke();
+  }
+
+  function drawStarBeads(x, y, w, h, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cell = Math.min(w, h);
+    var beadR = cell * 0.08;
+    var cx = x + w / 2;
+    var cy = y + h / 2;
+    var r = cell / 2 - beadR;
+    var inner = r * 0.381966;
+
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 5;
+      var rad = i % 2 === 0 ? r : inner;
+      var px = cx + rad * Math.cos(a);
+      var py = cy + rad * Math.sin(a);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    if (bg) { ctx.fillStyle = bg; ctx.fill(); }
+    ctx.stroke();
+
+    for (var i = 0; i < 5; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+      var tx = cx + r * Math.cos(a);
+      var ty = cy + r * Math.sin(a);
+      ctx.beginPath();
+      ctx.arc(tx, ty, beadR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function drawPoly(x, y, w, h, sides, lw) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cx = x + w / 2;
+    var cy = y + h / 2;
+
+    var maxX = 0, maxY = 0;
+    for (var i = 0; i < sides; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / sides;
+      maxX = Math.max(maxX, Math.abs(Math.cos(a)));
+      maxY = Math.max(maxY, Math.abs(Math.sin(a)));
+    }
+    var r = Math.min(w / (2 * maxX), h / (2 * maxY));
+    var dotR = Math.max(r * 0.05, lw * 3);
+    var pr = r - dotR;
+
+    var verts = [];
+    for (var i = 0; i < sides; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / sides;
+      verts.push({ x: cx + pr * Math.cos(a), y: cy + pr * Math.sin(a) });
+    }
+
+    ctx.lineCap = 'round';
+    ctx.setLineDash([lw, lw * 2.5]);
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    for (var i = 1; i < sides; i++) ctx.lineTo(verts[i].x, verts[i].y);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    for (var i = 0; i < sides; i++) {
+      ctx.beginPath();
+      ctx.arc(verts[i].x, verts[i].y, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawFiveSquares(x, y, w, h, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var s = Math.min(w / 5, h / 2);
+    var sx = x + (w - 5 * s) / 2;
+    var sy = y + (h - 2 * s) / 2;
+    var sqTop = sy + 0.5 * s;
+
+    ctx.setLineDash([]);
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(sx, sqTop, 5 * s, s); }
+    ctx.strokeRect(sx, sqTop, 5 * s, s);
+    for (var i = 1; i < 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(sx + i * s, sqTop);
+      ctx.lineTo(sx + i * s, sqTop + s);
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([lw * 5, lw * 3]);
+    var mx = sx + 2.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(mx, sy);
+    ctx.lineTo(mx, sy + 2 * s);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawRoundTable(x, y, w, h, n, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cx = x + w / 2, cy = y + h / 2;
+    var R = Math.min(w, h) / 2;
+    var ringR = R * (n >= 6 ? 0.62 : 0.55);
+    var plateR = Math.min(ringR * Math.sin(Math.PI / n), R - ringR) * 0.75;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    if (bg) { ctx.fillStyle = bg; ctx.fill(); }
+    ctx.stroke();
+
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+      ctx.beginPath();
+      ctx.arc(cx + ringR * Math.cos(a), cy + ringR * Math.sin(a), plateR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function drawBracelet(x, y, w, h, n, lw) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cx = x + w / 2, cy = y + h / 2;
+    var R = Math.min(w, h) / 2;
+    var sinN = Math.sin(Math.PI / n);
+    var k = 0.65;
+    var beadR = R * sinN * k / (1 + sinN * k);
+    var wireR = R - beadR;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, wireR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+      var bx = cx + wireR * Math.cos(a);
+      var by = cy + wireR * Math.sin(a);
+      ctx.beginPath();
+      ctx.arc(bx, by, beadR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function drawSquareBeads(x, y, w, h, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cell = Math.min(w, h);
+    var beadR = cell * 0.08;
+    var s = cell - 2 * beadR;
+    var sx = x + (w - s) / 2;
+    var sy = y + (h - s) / 2;
+
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(sx, sy, s, s); }
+    ctx.strokeRect(sx, sy, s, s);
+
+    var corners = [[sx, sy], [sx + s, sy], [sx, sy + s], [sx + s, sy + s]];
+    for (var i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.arc(corners[i][0], corners[i][1], beadR, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function drawHouse(x, y, w, h, lw, bg) {
+    var half = lw / 2;
+    x += half; y += half; w -= lw; h -= lw;
+    var cx = x + w / 2;
+    var bodyW = w;
+    var roofH = h * 0.25;
+    var bodyH = h - roofH;
+    var bodyL = x;
+    var roofTop = y;
+    var bodyTop = y + roofH;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, roofTop);
+    ctx.lineTo(bodyL, bodyTop);
+    ctx.lineTo(bodyL + bodyW, bodyTop);
+    ctx.closePath();
+    if (bg) { ctx.fillStyle = bg; ctx.fill(); }
+    ctx.stroke();
+
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(bodyL, bodyTop, bodyW, bodyH); }
+    ctx.strokeRect(bodyL, bodyTop, bodyW, bodyH);
+
+    var winS = bodyW * 0.20;
+    var px = bodyW * 0.12;
+    var py = bodyH * 0.10;
+    var wl = bodyL + px;
+    var wr = bodyL + bodyW - px - winS;
+    var wt = bodyTop + py;
+    var wb = bodyTop + bodyH - py - winS;
+
+    var wins = [[wl, wt], [wr, wt], [wl, wb], [wr, wb],
+                [bodyL + (bodyW - winS) / 2, bodyTop + (bodyH - winS) / 2]];
+    for (var i = 0; i < wins.length; i++) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(wins[i][0], wins[i][1], winS, winS);
+      ctx.strokeRect(wins[i][0], wins[i][1], winS, winS);
+    }
+  }
+
+  /* ---- colour sync ---- */
+
+  var colourText = document.getElementById('colour');
+  var colourPicker = document.getElementById('colourPicker');
+
+  colourText.addEventListener('input', function () {
+    var v = colourText.value;
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) colourPicker.value = v;
+    draw();
+  });
+  colourPicker.addEventListener('input', function () {
+    colourText.value = colourPicker.value;
+    draw();
+  });
+
+  var bgColours = [
+    '#ffffff','#feffc3','#ffe2c3','#ffbfbf','#e9ffc5','#c5ffe6','#cdf3ff','#d8e5ff','#e6ddff','#ffd4fc',
+    null,'#feffd7','#ffeedb','#ffdede','#e3ffdd','#dcfff5','#e3f8ff','#e6efff','#f2edff','#ffe5fd'
+  ];
+
+  document.querySelectorAll('.swatches').forEach(function (row) {
+    var inputId = row.getAttribute('data-for');
+    var input = document.getElementById(inputId);
+    bgColours.forEach(function (col) {
+      if (col === null) {
+        var ph = document.createElement('div');
+        ph.className = 'swatch-placeholder';
+        row.appendChild(ph);
+        return;
+      }
+      var s = document.createElement('div');
+      s.className = 'swatch' + (col === input.value ? ' active' : '');
+      s.style.backgroundColor = col;
+      s.setAttribute('data-val', col);
+      s.addEventListener('click', function () {
+        input.value = col;
+        row.querySelectorAll('.swatch').forEach(function (el) { el.classList.remove('active'); });
+        s.classList.add('active');
+        draw();
+      });
+      row.appendChild(s);
+    });
+  });
+
+  var bg2Field = document.getElementById('bg2Field');
+  var figureEl = document.getElementById('figure');
+  function updateBg2Vis() {
+    bg2Field.style.display = figureEl.value === 'grid5x5c' ? '' : 'none';
+  }
+  figureEl.addEventListener('change', updateBg2Vis);
+  updateBg2Vis();
+
+  /* ---- wire up remaining controls ---- */
+
+  var controls = document.querySelectorAll('.controls input[type="text"]:not(#colour), .controls input[type="number"], .controls select');
+  for (var i = 0; i < controls.length; i++) {
+    controls[i].addEventListener('input', draw);
+    controls[i].addEventListener('change', draw);
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>
