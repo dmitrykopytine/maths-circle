@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map Colouring</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f4f4f4;
+  padding: 16px;
+}
+.canvas-wrap {
+  margin-bottom: 20px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.field select,
+.field input[type="text"],
+.field input[type="number"] {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 14px;
+  background: #fff;
+  min-width: 0;
+}
+.field select { width: 200px; }
+.field input[type="text"] { width: 80px; }
+.field input[type="number"] { width: 70px; }
+button {
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  body { padding: 8px; }
+  .field select,
+  .field input[type="text"],
+  .field input[type="number"] {
+    font-size: 16px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="controls">
+  <div class="field">
+    <label>Image</label>
+    <select id="figure">
+      <option value="">— Select figure —</option>
+      <option value="grid2x4">Grid 2×4</option>
+      <option value="circle6">Circle split into 6 parts</option>
+      <option value="circle5">Circle split into 5 parts</option>
+      <option value="circle6center">Circle 6 parts + center</option>
+      <option value="squareCircles">Square with nested circles</option>
+      <option value="candy">Candy</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Size</label>
+    <input type="text" id="size" value="2400">
+  </div>
+  <div class="field">
+    <label>&nbsp;</label>
+    <button type="button" id="apply">Apply</button>
+  </div>
+  <div class="field">
+    <label>Line Width</label>
+    <input type="number" id="linewidth" value="6" min="1" step="1">
+  </div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+
+  function draw() {
+    var figure = document.getElementById('figure').value;
+    var W = parseInt(document.getElementById('size').value, 10) || 2400;
+    var lw = Math.max(0.5, parseFloat(document.getElementById('linewidth').value) || 6);
+
+    canvas.width = W;
+    canvas.height = W;
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, W);
+
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = lw;
+    ctx.lineJoin = 'miter';
+    ctx.lineCap = 'butt';
+
+    if (figure) {
+      var margin = lw / 2 + 2;
+      var w = W - 2 * margin;
+      var h = W - 2 * margin;
+      var cx = margin + w / 2;
+      var cy = margin + h / 2;
+      var r = Math.min(w, h) / 2;
+
+      switch (figure) {
+        case 'grid2x4':
+          drawGrid2x4(margin, margin, w, h, lw);
+          break;
+        case 'circle6':
+          drawCirclePie(cx, cy, r, 6, lw);
+          break;
+        case 'circle5':
+          drawCirclePie(cx, cy, r, 5, lw);
+          break;
+        case 'circle6center':
+          drawCirclePieCenter(cx, cy, r, 6, lw);
+          break;
+        case 'squareCircles':
+          drawSquareCircles(cx, cy, r, lw);
+          break;
+        case 'candy':
+          drawCandy(cx, cy, r, lw);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  function drawGrid2x4(x, y, w, h, lw) {
+    var cols = 4, rows = 2;
+    var s = Math.min(w / cols, h / rows);
+    var gw = cols * s, gh = rows * s;
+    var gx = x + (w - gw) / 2;
+    var gy = y + (h - gh) / 2;
+    ctx.strokeRect(gx, gy, gw, gh);
+    for (var c = 1; c < cols; c++) {
+      var lx = gx + c * s;
+      ctx.beginPath();
+      ctx.moveTo(lx, gy);
+      ctx.lineTo(lx, gy + gh);
+      ctx.stroke();
+    }
+    for (var r = 1; r < rows; r++) {
+      var ly = gy + r * s;
+      ctx.beginPath();
+      ctx.moveTo(gx, ly);
+      ctx.lineTo(gx + gw, ly);
+      ctx.stroke();
+    }
+  }
+
+  function drawCirclePie(cx, cy, r, n, lw) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      ctx.stroke();
+    }
+  }
+
+  function drawSquareCircles(cx, cy, r, lw) {
+    var side = 2 * r;
+    var sx = cx - r;
+    var sy = cy - r;
+    ctx.strokeRect(sx, sy, side, side);
+
+    var r1 = r * 0.9;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r1, 0, Math.PI * 2);
+    ctx.stroke();
+    for (var i = 0; i < 4; i++) {
+      var a = Math.PI / 4 + i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r1 * Math.cos(a), cy + r1 * Math.sin(a));
+      ctx.stroke();
+    }
+
+    var r2 = r1 * 2 / 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r2, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - r2, cy);
+    ctx.lineTo(cx + r2, cy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r2);
+    ctx.lineTo(cx, cy + r2);
+    ctx.stroke();
+
+    var r3 = r1 / 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function drawCandy(cx, cy, r, lw) {
+    var side = 2 * r;
+    var gap = r * 0.08;
+    var rCandy = r - gap;
+    var rInner = rCandy * 0.38;
+    var sx = cx - r;
+    var sy = cy - r;
+    var a1 = Math.PI * 4 / 3, a2 = Math.PI * 5 / 3;
+    var a3 = Math.PI / 3, a4 = Math.PI * 2 / 3;
+
+    ctx.strokeRect(sx, sy, side, side);
+    ctx.beginPath();
+    ctx.moveTo(cx, sy);
+    ctx.lineTo(cx, sy + side);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx, cy);
+    ctx.lineTo(sx + side, cy);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + rCandy * Math.cos(a1), cy + rCandy * Math.sin(a1));
+    ctx.arc(cx, cy, rCandy, a1, a2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + rCandy * Math.cos(a3), cy + rCandy * Math.sin(a3));
+    ctx.arc(cx, cy, rCandy, a3, a4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, rCandy, a1, a2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + rCandy * Math.cos(a1), cy + rCandy * Math.sin(a1));
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + rCandy * Math.cos(a2), cy + rCandy * Math.sin(a2));
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, rCandy, a3, a4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + rCandy * Math.cos(a3), cy + rCandy * Math.sin(a3));
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + rCandy * Math.cos(a4), cy + rCandy * Math.sin(a4));
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function drawCirclePieCenter(cx, cy, r, n, lw) {
+    var innerR = r * 0.25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+    ctx.stroke();
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+      ctx.beginPath();
+      ctx.moveTo(cx + innerR * Math.cos(a), cy + innerR * Math.sin(a));
+      ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      ctx.stroke();
+    }
+  }
+
+  document.getElementById('apply').addEventListener('click', function () {
+    draw();
+  });
+
+  document.getElementById('figure').addEventListener('change', draw);
+  document.getElementById('linewidth').addEventListener('input', draw);
+  document.getElementById('linewidth').addEventListener('change', draw);
+
+  draw();
+})();
+</script>
+</body>
+</html>
