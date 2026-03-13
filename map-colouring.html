@@ -239,6 +239,7 @@ button {
   }
 
   function drawCandy(cx, cy, r, lw) {
+    r = r * 0.72;
     var side = 2 * r;
     var gap = r * 0.08;
     var rCandy = r - gap;
@@ -248,9 +249,17 @@ button {
     var a1 = Math.PI * 4 / 3, a2 = Math.PI * 5 / 3;
     var a3 = Math.PI / 3, a4 = Math.PI * 2 / 3;
 
-    ctx.strokeRect(sx, sy, side, side);
+    var rise = side / 6;
     ctx.beginPath();
-    ctx.moveTo(cx, sy);
+    ctx.moveTo(sx, sy + side);
+    ctx.lineTo(sx, cy - rise);
+    ctx.arc(cx, cy - rise, r, Math.PI, 0);
+    ctx.lineTo(sx + side, sy + side);
+    ctx.lineTo(sx, sy + side);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
     ctx.lineTo(cx, sy + side);
     ctx.stroke();
     ctx.beginPath();
