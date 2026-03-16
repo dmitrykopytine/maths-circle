@@ -153,7 +153,7 @@ button {
           drawSquareCircles(cx, cy, r, lw);
           break;
         case 'candy':
-          drawCandy(cx, cy, r, lw);
+          drawCandy(cx, cy, r, lw, margin, w, h);
           break;
         default:
           break;
@@ -238,8 +238,14 @@ button {
     ctx.stroke();
   }
 
-  function drawCandy(cx, cy, r, lw) {
-    r = r * 0.72;
+  function drawCandy(cx, cy, r, lw, margin, w, h) {
+    var candyH = 7 * r / 3;
+    var s = h / candyH;
+    var tx = margin + w / 2 - s * cx;
+    var ty = margin - s * (cy - 4 * r / 3);
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.scale(s, s);
     var side = 2 * r;
     var gap = r * 0.08;
     var rCandy = r - gap;
@@ -308,6 +314,7 @@ button {
     ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
   }
 
   function drawCirclePieCenter(cx, cy, r, n, lw) {
