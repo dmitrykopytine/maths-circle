@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fractal Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e1019; --surface: #171b26; --surface2: #1f2435;
+    --border: #2a3048; --text: #dfe2f0; --text-dim: #7c829e;
+    --accent: #5e81f4; --sidebar-w: 250px;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #topbar {
+    display: none; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px; overflow-x: auto; white-space: nowrap;
+    -webkit-overflow-scrolling: touch; flex-shrink: 0;
+  }
+  .chip {
+    display: inline-block; padding: 6px 13px; margin-right: 5px;
+    border-radius: 18px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-dim);
+    font: 600 11.5px/1 'DM Sans', sans-serif; cursor: pointer;
+    transition: all .15s; user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+  #sidebar {
+    width: var(--sidebar-w); min-width: var(--sidebar-w);
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
+  }
+  #sidebar .logo { padding: 18px 16px 10px; font: 700 13px/1 'DM Sans'; letter-spacing:.08em; text-transform: uppercase; color: var(--text-dim); }
+  .grp { font: 600 9.5px/1 'DM Sans'; letter-spacing:.1em; text-transform: uppercase; color: var(--accent); padding: 14px 16px 5px; opacity:.65; }
+  .sbtn {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 16px; border: none; background: none;
+    color: var(--text-dim); font: 500 12.5px/1.2 'DM Sans';
+    cursor: pointer; text-align: left; width: 100%; transition: all .12s;
+  }
+  .sbtn:hover { background: var(--surface2); color: var(--text); }
+  .sbtn.on { background: var(--accent); color: #fff; }
+  .sbtn .n {
+    font: 500 10.5px/1 'JetBrains Mono'; width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; background: var(--surface2); flex-shrink: 0;
+  }
+  .sbtn.on .n { background: rgba(255,255,255,.15); }
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-y: auto; }
+  #info {
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    background: var(--surface); display: flex; align-items: baseline;
+    gap: 14px; flex-wrap: wrap; flex-shrink: 0;
+  }
+  #info h2 { font-size: 15px; font-weight: 700; white-space: nowrap; }
+  #info .rule { font-size: 12px; color: var(--text-dim); line-height: 1.45; flex: 1; min-width: 180px; }
+  #cvarea { display: flex; justify-content: center; background: var(--bg); }
+  #cvwrap {
+    box-shadow: 0 2px 24px rgba(0,0,0,.45); border-radius: 4px;
+    overflow: hidden; line-height: 0; background: #fff;
+    padding: 16px;
+  }
+  canvas { display: block; max-width: 100%; height: auto; }
+  #ctrls {
+    padding: 10px 20px 14px; border-top: 1px solid var(--border);
+    background: var(--surface); display: flex; align-items: center;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .cg { display: flex; align-items: center; gap: 5px; }
+  .cg label { font: 600 10.5px/1 'DM Sans'; letter-spacing:.04em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
+  .stepv { font: 500 15px 'JetBrains Mono'; color: var(--accent); min-width: 20px; text-align: center; }
+  .lwv { font: 500 13px 'JetBrains Mono'; color: var(--accent); min-width: 28px; text-align: center; }
+  .depthv { font: 400 11px 'JetBrains Mono'; color: var(--text-dim); white-space: nowrap; }
+  .ninp {
+    font: 400 12.5px 'JetBrains Mono'; width: 62px; padding: 5px 7px;
+    border-radius: 4px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); text-align: center;
+  }
+  .ninp:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    font: 600 11.5px 'DM Sans'; padding: 5px 12px; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text); cursor: pointer; transition: .15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .pm { width: 28px; padding: 5px 0; text-align: center; font-size: 15px; font-weight: 700; }
+  @media (max-width: 800px) {
+    #sidebar { display: none; }
+    #topbar { display: block; }
+    #info { padding: 8px 12px; }
+    #info h2 { font-size: 13px; }
+    #ctrls { padding: 10px 12px; gap: 8px; }
+    #cvarea { padding: 0; }
+  }
+  @media (max-width: 480px) {
+    #ctrls { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar"></div>
+<div id="layout">
+  <nav id="sidebar">
+    <div class="logo">Fractal Explorer</div>
+    <div id="sb-list"></div>
+  </nav>
+  <div id="main">
+    <div id="info"><h2 id="fname"></h2><div class="rule" id="frule"></div></div>
+    <div id="cvarea"><div id="cvwrap"><canvas id="cv"></canvas></div></div>
+    <div id="ctrls">
+      <div class="cg">
+        <label>Step</label>
+        <button class="btn pm" id="step-down">−</button>
+        <span class="stepv" id="sv">0</span>
+        <button class="btn pm" id="step-up">+</button>
+        <span class="depthv" id="dv"></span>
+      </div>
+      <div class="cg">
+        <label>Line</label>
+        <button class="btn pm" id="lw-down">−</button>
+        <span class="lwv" id="lwv">8</span>
+        <button class="btn pm" id="lw-up">+</button>
+        <span style="font-size:10px;color:var(--text-dim)">px</span>
+      </div>
+      <div class="cg">
+        <label>Size</label>
+        <input type="number" class="ninp" id="szinp" value="2400" min="100" max="8000" step="100">
+        <span style="font-size:10px;color:var(--text-dim)">px</span>
+        <button class="btn" id="applysz">Apply</button>
+      </div>
+      <div class="cg">
+        <button class="btn" id="savebtn">💾 PNG</button>
+      </div>
+      <div class="cg">
+        <label for="guidescb" style="cursor:pointer">Guidelines</label>
+        <input type="checkbox" id="guidescb" style="cursor:pointer;accent-color:var(--accent)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const F = [
+  { id:'sierpinski_tri', name:'Sierpiński Triangle', g:'Easiest to draw', mx:8,
+    rule:'Each filled triangle is split into 4 smaller triangles; the middle one becomes a hole.' },
+  { id:'sierpinski_inv', name:'Sierpiński Triangle (outline)', g:'Easiest to draw', mx:8,
+    rule:'Draw the triangle outline; at each step, fill the middle triangle inside every empty sub-triangle.' },
+  { id:'sierpinski_carpet', name:'Sierpiński Carpet', g:'Easiest to draw', mx:5,
+    rule:'Divide each kept square into a 3×3 grid and remove the centre square.' },
+  { id:'sierpinski_carpet_o', name:'Sierpiński Carpet (outline)', g:'Easiest to draw', mx:5,
+    rule:'Draw the square outline; at each step, fill the centre square of every 3×3 subdivision.' },
+  { id:'cantor', name:'Cantor Set', g:'Easiest to draw', mx:9,
+    rule:'Split each line segment into three equal parts and erase the middle third.' },
+  { id:'htree', name:'H-Tree', g:'Easiest to draw', mx:11,
+    rule:'Start with an H, then draw a smaller H at each of the 4 endpoints at half size.' },
+  { id:'tsquare', name:'T-Square Fractal', g:'Easiest to draw', mx:9,
+    rule:'Place a half-size square on each corner of every existing square, then repeat.' },
+  { id:'fractree', name:'Fractal Tree', g:'Curves', mx:14,
+    rule:'Each branch splits into two branches at ±15° from the parent direction, at 0.7× length.' },
+  { id:'pythtree', name:'Pythagorean Tree', g:'Curves', mx:12,
+    rule:'On each square\u2019s top edge, build a right triangle (angle 35°); draw squares on both legs. Sizes differ.' },
+  { id:'pythtree_eq', name:'Pythagorean Tree (equal)', g:'Curves', mx:12,
+    rule:'On each square\u2019s top edge, build a right triangle (angle 45°); draw equal squares on both legs.' },
+  { id:'kochcurve', name:'Koch Curve', g:'Curves', mx:8,
+    rule:'Start with a line; replace the middle third with two sides of an equilateral triangle. Repeat for every segment.' },
+  { id:'koch', name:'Koch Snowflake', g:'Curves', mx:7,
+    rule:'Replace each segment with 4 segments forming a triangular bump on the middle third.' },
+  { id:'levy', name:'Lévy C Curve', g:'Curves', mx:16,
+    rule:'Replace each segment with two equal segments meeting at a right angle.' },
+  { id:'hilbert', name:'Hilbert Curve', g:'Curves', mx:7,
+    rule:'Connect four smaller copies of the previous curve in a U-shape to fill the grid.' },
+  { id:'hilbert_teach', name:'Hilbert Curve (teaching)', g:'Curves', mx:7,
+    rule:'Same as Hilbert, but the 3 segments connecting the 4 sub-curves are drawn as dotted lines.' },
+  { id:'hilbert_guide', name:'Hilbert Curve (guidelines)', g:'Curves', mx:7,
+    rule:'Grid guidelines only \u2014 print this and draw the Hilbert curve by hand.' },
+  { id:'vicsek', name:'Vicsek Fractal', g:'Stamp fractals', mx:6,
+    rule:'Divide into 3×3, keep centre + four edge-centres (a plus shape), repeat inside each.' },
+  { id:'vicsek_o', name:'Vicsek Fractal (outline)', g:'Stamp fractals', mx:6,
+    rule:'Draw the square outline; at each step, fill the four corner squares of every 3×3 subdivision.' },
+  { id:'cantordust', name:'Cantor Dust', g:'Stamp fractals', mx:6,
+    rule:'Divide each square into a 3×3 grid and keep only the four corner squares, then repeat.' },
+  { id:'cantordust_o', name:'Cantor Dust (outline)', g:'Stamp fractals', mx:6,
+    rule:'Draw the square outline; at each step, fill the five non-corner squares of every 3×3 subdivision.' },
+  { id:'trapezoid', name:'Trapezoid Fractal', g:'Stamp fractals', mx:10,
+    rule:'Each right trapezoid is split into 4 smaller trapezoids by a vertical cut, a diagonal, and a horizontal line.' },
+];
+
+let cur = 0, step = 0, sz = 2400, lw = 8, guides = false;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+function D() { return step - 1; }
+
+// ═══════════════ Guidelines ═══════════════
+function guideSetup() {
+  ctx.strokeStyle = '#AAAAAA';
+  ctx.lineWidth = Math.max(0.3, lw / 2);
+  ctx.setLineDash([lw * 1.5, lw * 1.5]);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+}
+function guideSolid() {
+  ctx.strokeStyle = '#AAAAAA';
+  ctx.lineWidth = Math.max(0.3, lw / 2);
+  ctx.setLineDash([]);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+}
+function guideEnd() { ctx.setLineDash([]); }
+function glp(a, b, t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]; }
+
+function guidesST(S) {
+  const pad = 2;
+  const h = (S - 2*pad) * Math.sqrt(3)/2;
+  const yo = (S - h) / 2;
+  const A = [S/2, yo], B = [pad, yo+h], C = [S-pad, yo+h];
+  const n = 16;
+  guideSetup();
+  ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.lineTo(C[0],C[1]); ctx.closePath(); ctx.stroke();
+  for (let k = 1; k < n; k++) {
+    let p1 = glp(A,B,k/n), p2 = glp(A,C,k/n);
+    ctx.beginPath(); ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]); ctx.stroke();
+    p1 = glp(A,B,k/n); p2 = glp(B,C,1-k/n);
+    ctx.beginPath(); ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]); ctx.stroke();
+    p1 = glp(A,C,k/n); p2 = glp(B,C,k/n);
+    ctx.beginPath(); ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]); ctx.stroke();
+  }
+  guideEnd();
+  // Solid: central inscribed triangle (midpoints)
+  const mAB = glp(A,B,0.5), mBC = glp(B,C,0.5), mAC = glp(A,C,0.5);
+  guideSolid();
+  ctx.beginPath(); ctx.moveTo(mAB[0],mAB[1]); ctx.lineTo(mBC[0],mBC[1]); ctx.lineTo(mAC[0],mAC[1]); ctx.closePath(); ctx.stroke();
+}
+
+function guidesSCO(S) {
+  const pad = 2, side = S - 2*pad;
+  const n = 27;
+  const cell = side / n;
+  guideSetup();
+  ctx.strokeRect(pad, pad, side, side);
+  for (let k = 1; k < n; k++) {
+    ctx.beginPath(); ctx.moveTo(pad + k*cell, pad); ctx.lineTo(pad + k*cell, pad + side); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, pad + k*cell); ctx.lineTo(pad + side, pad + k*cell); ctx.stroke();
+  }
+  guideEnd();
+  // Solid: central 1/3 square + 8 smaller center squares in outer cells
+  guideSolid();
+  const t = side/3;
+  ctx.strokeRect(pad + t, pad + t, t, t);
+  const s = t/3;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    if (r === 1 && c === 1) continue;
+    ctx.strokeRect(pad + c*t + t/3, pad + r*t + t/3, s, s);
+  }
+}
+
+function guidesVC(S) {
+  const pad = 2, side = S - 2*pad;
+  const n = 27;
+  const cell = side / n;
+  guideSetup();
+  ctx.strokeRect(pad, pad, side, side);
+  for (let k = 1; k < n; k++) {
+    ctx.beginPath(); ctx.moveTo(pad + k*cell, pad); ctx.lineTo(pad + k*cell, pad + side); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, pad + k*cell); ctx.lineTo(pad + side, pad + k*cell); ctx.stroke();
+  }
+  guideEnd();
+  // Solid: 3x3 grid lines (at 1/3 and 2/3)
+  guideSolid();
+  const t1 = side/3, t2 = 2*side/3;
+  ctx.beginPath(); ctx.moveTo(pad+t1, pad); ctx.lineTo(pad+t1, pad+side); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad+t2, pad); ctx.lineTo(pad+t2, pad+side); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, pad+t1); ctx.lineTo(pad+side, pad+t1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, pad+t2); ctx.lineTo(pad+side, pad+t2); ctx.stroke();
+}
+
+function guidesCantor(S) {
+  const pad = 2;
+  const rowH = Math.max(2, (S-2*pad) / (9+2) * .5);
+  const gapY = (S-2*pad-rowH) / Math.max(1, 9);
+  const W = S - 2*pad;
+  const n = 27;
+  const cell = W / n;
+  guideSetup();
+  const totalH = 9*gapY + rowH;
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, pad + totalH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad + W, pad); ctx.lineTo(pad + W, pad + totalH); ctx.stroke();
+  for (let k = 1; k < n; k++) {
+    ctx.beginPath(); ctx.moveTo(pad + k*cell, pad); ctx.lineTo(pad + k*cell, pad + totalH); ctx.stroke();
+  }
+  for (let lv = 0; lv <= 9; lv++) {
+    const y = pad + lv * gapY;
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(pad + W, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, y + rowH); ctx.lineTo(pad + W, y + rowH); ctx.stroke();
+  }
+  guideEnd();
+}
+
+let _hTreeBB = null;
+function hTreeBB() {
+  if (_hTreeBB) return _hTreeBB;
+  let bx0=0,bx1=0,by0=0,by1=0;
+  function bbH(x,y,len,dep) {
+    if (dep > 11 || len < 1e-6) return;
+    const hw=len/2, hh=len/2, cl=len/2.5;
+    bx0=Math.min(bx0,x-hw); bx1=Math.max(bx1,x+hw);
+    by0=Math.min(by0,y-hh); by1=Math.max(by1,y+hh);
+    bbH(x-hw,y-hh,cl,dep+1); bbH(x-hw,y+hh,cl,dep+1);
+    bbH(x+hw,y-hh,cl,dep+1); bbH(x+hw,y+hh,cl,dep+1);
+  }
+  bbH(0,0,1,0);
+  _hTreeBB = {x0:bx0,x1:bx1,y0:by0,y1:by1};
+  return _hTreeBB;
+}
+
+function guidesHTree(S) {
+  guideSetup();
+  ctx.strokeRect(2, 2, S-4, S-4);
+  guideEnd();
+}
+
+let _tSquareBB = null;
+function tSquareBB() {
+  if (_tSquareBB) return _tSquareBB;
+  let bx0=0,bx1=0,by0=0,by1=0;
+  function bbT(x,y,side,dep) {
+    if (dep > 9 || side < 1e-6) return;
+    bx0=Math.min(bx0,x-side/2); bx1=Math.max(bx1,x+side/2);
+    by0=Math.min(by0,y-side/2); by1=Math.max(by1,y+side/2);
+    const h=side/2;
+    bbT(x-h,y-h,h,dep+1); bbT(x+h,y-h,h,dep+1);
+    bbT(x-h,y+h,h,dep+1); bbT(x+h,y+h,h,dep+1);
+  }
+  bbT(0,0,1,0);
+  _tSquareBB = {x0:bx0,x1:bx1,y0:by0,y1:by1};
+  return _tSquareBB;
+}
+
+function guidesTSQ(S) {
+  const bb = tSquareBB();
+  const pad = 2;
+  const bw=bb.x1-bb.x0, bh=bb.y1-bb.y0;
+  const sc = Math.min((S-2*pad)/bw, (S-2*pad)/bh);
+  const ox = S/2 - (bb.x0+bb.x1)/2*sc;
+  const oy = S/2 - (bb.y0+bb.y1)/2*sc;
+  const cell = sc / 16;
+  const left = ox + bb.x0*sc, right = ox + bb.x1*sc;
+  const top_ = oy + bb.y0*sc, bottom = oy + bb.y1*sc;
+  guideSetup();
+  ctx.strokeRect(left, top_, right-left, bottom-top_);
+  for (let x = ox; x <= right + 0.5; x += cell) {
+    ctx.beginPath(); ctx.moveTo(x, top_); ctx.lineTo(x, bottom); ctx.stroke();
+  }
+  for (let x = ox - cell; x >= left - 0.5; x -= cell) {
+    ctx.beginPath(); ctx.moveTo(x, top_); ctx.lineTo(x, bottom); ctx.stroke();
+  }
+  for (let y = oy; y <= bottom + 0.5; y += cell) {
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+  }
+  for (let y = oy - cell; y >= top_ - 0.5; y -= cell) {
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+  }
+  guideEnd();
+  // Solid: central square (step 0) + 4 corner squares (step 1)
+  guideSolid();
+  const hs = sc/2;
+  ctx.strokeRect(ox-hs, oy-hs, sc, sc);
+  const qs = sc/4;
+  ctx.strokeRect(ox-hs-qs, oy-hs-qs, hs, hs);
+  ctx.strokeRect(ox+hs-qs, oy-hs-qs, hs, hs);
+  ctx.strokeRect(ox-hs-qs, oy+hs-qs, hs, hs);
+  ctx.strokeRect(ox+hs-qs, oy+hs-qs, hs, hs);
+}
+
+function guidesTree(S) {
+  guideSetup();
+  ctx.strokeRect(2, 2, S-4, S-4);
+  guideEnd();
+}
+
+function guidesPythGeneric(S) {
+  guideSetup();
+  ctx.strokeRect(2, 2, S-4, S-4);
+  guideEnd();
+}
+function guidesPythTree(S) { guidesPythGeneric(S); }
+function guidesPythTreeEq(S) { guidesPythGeneric(S); }
+
+function guidesKochCurve(S) {
+  const p = 2;
+  guideSetup();
+  ctx.strokeRect(p, p, S-2*p, S-2*p);
+  const side = S-2*p;
+  for (let k = 1; k < 3; k++) {
+    ctx.beginPath(); ctx.moveTo(p+k*side/3, p); ctx.lineTo(p+k*side/3, p+side); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p, p+k*side/3); ctx.lineTo(p+side, p+k*side/3); ctx.stroke();
+  }
+  guideEnd();
+}
+
+function guidesLevy(S) {
+  guideSetup();
+  ctx.strokeRect(2, 2, S-4, S-4);
+  guideEnd();
+}
+
+function guidesHilbert(S) {
+  const d = D();
+  if (d < 0) return;
+  const order = d + 1;
+  const n = 1 << order;
+  const pad = 2 + lw/2;
+  const cw = (S-2*pad) / (n-1||1);
+  const first = pad, last = pad + (n-1)*cw;
+  guideSetup();
+  for (let i = 0; i < n; i++) {
+    const p = pad + i*cw;
+    ctx.beginPath(); ctx.moveTo(p, first); ctx.lineTo(p, last); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(first, p); ctx.lineTo(last, p); ctx.stroke();
+  }
+  guideEnd();
+}
+
+const GUIDES = [
+  null, guidesST, null, guidesSCO, guidesCantor,
+  guidesHTree, guidesTSQ, guidesTree, guidesPythTree, guidesPythTreeEq,
+  guidesKochCurve, null, guidesLevy, guidesHilbert, guidesHilbert,
+  null, null, guidesVC, null, guidesVC, null,
+];
+const GUIDES_TOP = [
+  null, null, null, null, null,
+  null, null, null, null, null,
+  null, null, null, null, null,
+  null, null, null, guidesVC, null, null,
+];
+
+// ─── 1. Sierpiński Triangle (filled with holes) ───
+function drawST(S) {
+  const d = step;
+  const pad = 2;
+  const h = (S - 2*pad) * Math.sqrt(3)/2;
+  const yo = (S - h) / 2;
+  const Ax = S/2, Ay = yo, Bx = pad, By = yo+h, Cx = S-pad, Cy = yo+h;
+  ctx.fillStyle = '#1a2744';
+  ctx.beginPath(); ctx.moveTo(Ax,Ay); ctx.lineTo(Bx,By); ctx.lineTo(Cx,Cy); ctx.closePath(); ctx.fill();
+  if (d === 0) return;
+  ctx.fillStyle = '#ffffff';
+  function rec(ax,ay,bx,by,cx,cy,dep) {
+    if (dep > d) return;
+    const mx1=(ax+bx)/2, my1=(ay+by)/2, mx2=(bx+cx)/2, my2=(by+cy)/2, mx3=(ax+cx)/2, my3=(ay+cy)/2;
+    ctx.beginPath(); ctx.moveTo(mx1,my1); ctx.lineTo(mx2,my2); ctx.lineTo(mx3,my3); ctx.closePath(); ctx.fill();
+    rec(ax,ay,mx1,my1,mx3,my3,dep+1);
+    rec(mx1,my1,bx,by,mx2,my2,dep+1);
+    rec(mx3,my3,mx2,my2,cx,cy,dep+1);
+  }
+  rec(Ax,Ay,Bx,By,Cx,Cy,1);
+}
+
+// ─── 2. Sierpiński Triangle (outline / inverted) ───
+function drawSTI(S) {
+  const d = step;
+  const pad = 2;
+  const h = (S - 2*pad) * Math.sqrt(3)/2;
+  const yo = (S - h) / 2;
+  const Ax = S/2, Ay = yo, Bx = pad, By = yo+h, Cx = S-pad, Cy = yo+h;
+  // Step 1: just the outline
+  ctx.strokeStyle = '#1a2744';
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(Ax,Ay); ctx.lineTo(Bx,By); ctx.lineTo(Cx,Cy); ctx.closePath(); ctx.stroke();
+  if (d === 0) return;
+  // Fill middle triangles recursively
+  ctx.fillStyle = '#1a2744';
+  function rec(ax,ay,bx,by,cx,cy,dep) {
+    if (dep > d) return;
+    const mx1=(ax+bx)/2, my1=(ay+by)/2, mx2=(bx+cx)/2, my2=(by+cy)/2, mx3=(ax+cx)/2, my3=(ay+cy)/2;
+    // The middle triangle (inverted) — its vertices are the midpoints
+    ctx.beginPath(); ctx.moveTo(mx1,my1); ctx.lineTo(mx2,my2); ctx.lineTo(mx3,my3); ctx.closePath(); ctx.fill();
+    // Recurse into the 3 corner triangles (not the middle one)
+    rec(ax,ay,mx1,my1,mx3,my3,dep+1);
+    rec(mx1,my1,bx,by,mx2,my2,dep+1);
+    rec(mx3,my3,mx2,my2,cx,cy,dep+1);
+  }
+  rec(Ax,Ay,Bx,By,Cx,Cy,1);
+}
+
+// ─── 3. Sierpiński Carpet ───
+function drawSC(S) {
+  const d = step;
+  const pad = 2; const side = S - 2*pad;
+  ctx.fillStyle = '#1a2744';
+  ctx.fillRect(pad,pad,side,side);
+  if (d === 0) return;
+  ctx.fillStyle = '#ffffff';
+  function rec(x,y,s,dep) {
+    if (dep > d) return;
+    const t = s/3; const e = 0.5;
+    ctx.fillRect(Math.floor(x+t), Math.floor(y+t), Math.ceil(t+e), Math.ceil(t+e));
+    for (let i=0;i<3;i++) for (let j=0;j<3;j++) if (!(i===1&&j===1)) rec(x+i*t,y+j*t,t,dep+1);
+  }
+  rec(pad,pad,side,1);
+}
+
+// ─── 4. Cantor Set ───
+function drawCantor(S) {
+  const d = D();
+  const pad = 2;
+  const rowH = Math.max(2, (S-2*pad) / (9+2) * .5);
+  const gapY = (S-2*pad-rowH) / Math.max(1, 9);
+  ctx.fillStyle = '#1a2744';
+  let segs = [[0,1]];
+  for (let lv=0; lv<=d; lv++) {
+    const y = pad + lv * gapY;
+    ctx.globalAlpha = Math.max(0.25, 1 - lv*0.05);
+    for (const [a,b] of segs) {
+      const x1 = pad + a*(S-2*pad), x2 = pad + b*(S-2*pad);
+      ctx.fillRect(x1, y, Math.max(0.5, x2-x1), rowH);
+    }
+    const next = [];
+    for (const [a,b] of segs) { const t=(b-a)/3; next.push([a,a+t],[b-t,b]); }
+    segs = next;
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── 5. H-Tree ───
+function drawHTree(S) {
+  const d = D();
+  const bb = hTreeBB();
+  const pad = 2;
+  const bw=bb.x1-bb.x0, bh=bb.y1-bb.y0;
+  const sc = Math.min((S-2*pad)/bw, (S-2*pad)/bh);
+  const ox = S/2 - (bb.x0+bb.x1)/2*sc;
+  const oy = S/2 - (bb.y0+bb.y1)/2*sc;
+
+  ctx.strokeStyle = '#1a2744'; ctx.lineCap = 'round';
+  function drawH(x,y,len,dep) {
+    if (dep > d || len < 0.3) return;
+    const halfW = len/2, halfH = len/2;
+    const w = Math.max(0.4, lw - dep*(lw*0.12));
+    const childLen = len / 2.5;
+    ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x-halfW,y); ctx.lineTo(x+halfW,y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x-halfW,y-halfH); ctx.lineTo(x-halfW,y+halfH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+halfW,y-halfH); ctx.lineTo(x+halfW,y+halfH); ctx.stroke();
+    drawH(x-halfW,y-halfH,childLen,dep+1);
+    drawH(x-halfW,y+halfH,childLen,dep+1);
+    drawH(x+halfW,y-halfH,childLen,dep+1);
+    drawH(x+halfW,y+halfH,childLen,dep+1);
+  }
+  drawH(ox, oy, 1*sc, 0);
+}
+
+// ─── 6. T-Square ───
+function drawTSQ(S) {
+  const d = D();
+  const bb = tSquareBB();
+  const pad = 2;
+  const bw=bb.x1-bb.x0, bh=bb.y1-bb.y0;
+  const sc = Math.min((S-2*pad)/bw, (S-2*pad)/bh);
+  const ox = S/2 - (bb.x0+bb.x1)/2*sc;
+  const oy = S/2 - (bb.y0+bb.y1)/2*sc;
+
+  ctx.fillStyle = '#ff8c61';
+  function rec(x,y,side,dep) {
+    if (dep > d || side < 0.3) return;
+    ctx.fillRect(x-side/2,y-side/2,side,side);
+    const h = side/2;
+    rec(x-h,y-h,h,dep+1); rec(x+h,y-h,h,dep+1);
+    rec(x-h,y+h,h,dep+1); rec(x+h,y+h,h,dep+1);
+  }
+  rec(ox, oy, 1*sc, 0);
+}
+
+// ─── 7. Fractal Tree ───
+function drawTree(S) {
+  const d = D();
+  const ratio = 0.72;
+  const angleSpread = 30 * Math.PI / 180;
+
+  // Compute bounding box at max depth
+  let bx0=0,bx1=0,by0=0,by1=0;
+  function bbox(x, y, len, angle, dep) {
+    if (dep > 14 || len < 0.001) return;
+    const ex = x + Math.sin(angle) * len;
+    const ey = y - Math.cos(angle) * len;
+    bx0=Math.min(bx0,ex); bx1=Math.max(bx1,ex);
+    by0=Math.min(by0,ey); by1=Math.max(by1,ey);
+    bbox(ex, ey, len * ratio, angle - angleSpread/2, dep+1);
+    bbox(ex, ey, len * ratio, angle + angleSpread/2, dep+1);
+  }
+  bbox(0, 0, 1, 0, 0);
+
+  const pad = Math.max(8, 2 + lw);
+  const bw = bx1-bx0, bh = by1-by0;
+  const sc = Math.min((S-2*pad)/bw, (S-2*pad)/bh);
+  const ox = S/2 - (bx0+bx1)/2 * sc;
+  const oy = (S - pad) - by1 * sc; // base at bottom with pad
+
+  ctx.strokeStyle = '#2a5e1a'; ctx.lineCap = 'round';
+
+  function branch(x, y, len, angle, dep) {
+    if (dep > d || len < 0.5) return;
+    const ex = x + Math.sin(angle) * len;
+    const ey = y - Math.cos(angle) * len;
+    const w = Math.max(0.3, lw * Math.pow(0.88, dep));
+    ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(ex,ey); ctx.stroke();
+    branch(ex, ey, len * ratio, angle - angleSpread/2, dep+1);
+    branch(ex, ey, len * ratio, angle + angleSpread/2, dep+1);
+  }
+  branch(ox, oy, 1 * sc, 0, 0);
+}
+
+// ─── Pythagorean Tree (generic, auto-fit) ───
+function pythBBox(alpha, maxD) {
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  function mark(x,y) { x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
+  function rec(bx0,by0,bx1,by1,dep) {
+    if (dep > maxD) return;
+    const dx=bx1-bx0, dy=by1-by0;
+    const s = Math.sqrt(dx*dx+dy*dy);
+    if (s < 1e-6) return;
+    const tlx=bx0+dy, tly=by0-dx, trx=bx1+dy, try_=by1-dx;
+    mark(bx0,by0); mark(bx1,by1); mark(tlx,tly); mark(trx,try_);
+    const ca=Math.cos(alpha), sa=Math.sin(alpha);
+    const apx=tlx+ca*ca*dx+ca*sa*dy, apy=tly+ca*ca*dy-ca*sa*dx;
+    rec(tlx,tly,apx,apy,dep+1);
+    rec(apx,apy,trx,try_,dep+1);
+  }
+  rec(-0.5, 0, 0.5, 0, 0);
+  return {x0,x1,y0,y1};
+}
+
+let _pythBB35=null, _pythBB45=null;
+function getPythBB(alpha) {
+  if (alpha < 0.7) { if(!_pythBB35) _pythBB35=pythBBox(alpha,12); return _pythBB35; }
+  if(!_pythBB45) _pythBB45=pythBBox(alpha,12); return _pythBB45;
+}
+
+function drawPythTreeGeneric(S, alpha) {
+  const d = D();
+  const bb = getPythBB(alpha);
+  const pad = 2;
+  const bw=bb.x1-bb.x0, bh=bb.y1-bb.y0;
+  const sc = Math.min((S-2*pad)/bw, (S-2*pad)/bh);
+  const ox = (S - bw*sc)/2 - bb.x0*sc;
+  const oy = (S - bh*sc)/2 - bb.y0*sc;
+
+  ctx.fillStyle = '#1a2744';
+  ctx.strokeStyle = '#0e1a30';
+  ctx.lineWidth = Math.max(0.3, lw * 0.3);
+
+  function rec(x0, y0, x1, y1, dep) {
+    if (dep > d) return;
+    const dx = x1-x0, dy = y1-y0;
+    const side = Math.sqrt(dx*dx + dy*dy);
+    if (side < 0.5) return;
+    const tlx = x0+dy, tly = y0-dx;
+    const trx = x1+dy, try_ = y1-dx;
+
+    ctx.beginPath();
+    ctx.moveTo(x0,y0); ctx.lineTo(x1,y1);
+    ctx.lineTo(trx,try_); ctx.lineTo(tlx,tly);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    const ca = Math.cos(alpha), sa = Math.sin(alpha);
+    const apx = tlx + ca*ca*dx + ca*sa*dy;
+    const apy = tly + ca*ca*dy - ca*sa*dx;
+
+    rec(tlx, tly, apx, apy, dep+1);
+    rec(apx, apy, trx, try_, dep+1);
+  }
+
+  const bx0 = -0.5*sc+ox, by0 = 0*sc+oy;
+  const bx1 = 0.5*sc+ox, by1 = 0*sc+oy;
+  rec(bx0, by0, bx1, by1, 0);
+}
+
+function drawPythTree(S) { drawPythTreeGeneric(S, 35 * Math.PI / 180); }
+function drawPythTreeEq(S) { drawPythTreeGeneric(S, 45 * Math.PI / 180); }
+
+// ─── 8. Koch Snowflake (auto-fit, stable) ───
+function kochPts(ax,ay,bx,by,dep) {
+  if (dep === 0) return [[bx,by]];
+  const dx=bx-ax, dy=by-ay;
+  const px=ax+dx/3, py=ay+dy/3;
+  const qx=ax+2*dx/3, qy=ay+2*dy/3;
+  const c60=Math.cos(Math.PI/3), s60=Math.sin(Math.PI/3);
+  const tx=px+(qx-px)*c60-(qy-py)*s60;
+  const ty=py+(qx-px)*s60+(qy-py)*c60;
+  return [
+    ...kochPts(ax,ay,px,py,dep-1), ...kochPts(px,py,tx,ty,dep-1),
+    ...kochPts(tx,ty,qx,qy,dep-1), ...kochPts(qx,qy,bx,by,dep-1),
+  ];
+}
+
+// ─── Koch Curve (single side) ───
+let _kochCurveBB = null;
+function kochCurveBB() {
+  if (_kochCurveBB) return _kochCurveBB;
+  const pts = [[0,0], ...kochPts(0,0,1,0,8)];
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const [x,y] of pts) { x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,-y); y1=Math.max(y1,-y); }
+  _kochCurveBB = {x0,x1,y0,y1};
+  return _kochCurveBB;
+}
+
+function drawKochCurve(S) {
+  const d = D();
+  if (d < 0) return;
+  const pts = [[0,0], ...kochPts(0,0,1,0,d)];
+  const bb = kochCurveBB();
+  const w = bb.x1-bb.x0||1, h = bb.y1-bb.y0||1;
+  const pad = 2;
+  const sc = Math.min((S-2*pad)/w, (S-2*pad)/h);
+  const ox = (S - w*sc)/2 - bb.x0*sc;
+  const oy = (S - h*sc)/2 - bb.y0*sc;
+
+  ctx.strokeStyle = '#2050a0';
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0]*sc+ox, -pts[0][1]*sc+oy);
+  for (let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0]*sc+ox, -pts[i][1]*sc+oy);
+  ctx.stroke();
+}
+
+// Precompute stable bounding box from max depth
+let _kochBB = null;
+function kochBB() {
+  if (_kochBB) return _kochBB;
+  const r = 1;
+  const Ax=0, Ay=-r, Bx=-r*Math.sqrt(3)/2, By=r/2, Cx=r*Math.sqrt(3)/2, Cy=r/2;
+  const pts = [[Ax,Ay]];
+  pts.push(...kochPts(Ax,Ay,Bx,By,5));
+  pts.push(...kochPts(Bx,By,Cx,Cy,5));
+  pts.push(...kochPts(Cx,Cy,Ax,Ay,5));
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const [x,y] of pts) { x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
+  _kochBB = {x0,x1,y0,y1};
+  return _kochBB;
+}
+
+function drawKoch(S) {
+  const d = D();
+  if (d < 0) return;
+  const r = 1;
+  const Ax=0, Ay=-r, Bx=-r*Math.sqrt(3)/2, By=r/2, Cx=r*Math.sqrt(3)/2, Cy=r/2;
+  const pts = [[Ax,Ay]];
+  pts.push(...kochPts(Ax,Ay,Bx,By,d));
+  pts.push(...kochPts(Bx,By,Cx,Cy,d));
+  pts.push(...kochPts(Cx,Cy,Ax,Ay,d));
+
+  // Use stable bounding box
+  const bb = kochBB();
+  const w = bb.x1-bb.x0, h = bb.y1-bb.y0;
+  const pad = 2;
+  const sc = Math.min((S-2*pad)/w, (S-2*pad)/h);
+  const ox = (S - w*sc)/2 - bb.x0*sc;
+  const oy = (S - h*sc)/2 - bb.y0*sc;
+
+  ctx.strokeStyle = '#2050a0';
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0]*sc+ox, pts[0][1]*sc+oy);
+  for (let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0]*sc+ox, pts[i][1]*sc+oy);
+  ctx.closePath(); ctx.stroke();
+}
+
+// ─── 9. Lévy C Curve (stable anchor, no jump) ───
+function levyPts(dep) {
+  let pts = [[0,0],[1,0]];
+  for (let i=0; i<dep; i++) {
+    const next = [pts[0]];
+    for (let j=0; j<pts.length-1; j++) {
+      const [ax,ay]=pts[j],[bx,by]=pts[j+1];
+      const mx=(ax+bx)/2+(by-ay)/2, my=(ay+by)/2-(bx-ax)/2;
+      next.push([mx,my],[bx,by]);
+    }
+    pts = next;
+  }
+  return pts;
+}
+
+// Stable bounding box from max depth
+let _levyBB = null;
+function levyBB() {
+  if (_levyBB) return _levyBB;
+  const pts = levyPts(16);
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const [x,y] of pts) { x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
+  _levyBB = {x0,x1,y0,y1};
+  return _levyBB;
+}
+
+function drawLevy(S) {
+  const d = D();
+  if (d < 0) return;
+  const pts = levyPts(d);
+  const bb = levyBB();
+  const w = bb.x1-bb.x0||1, h = bb.y1-bb.y0||1;
+  const pad = 2;
+  const sc = Math.min((S-2*pad)/w, (S-2*pad)/h);
+  const ox = (S - w*sc)/2 - bb.x0*sc;
+  const oy = (S - h*sc)/2 - bb.y0*sc;
+
+  ctx.strokeStyle = '#6a3da8';
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0]*sc+ox, pts[0][1]*sc+oy);
+  for (let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0]*sc+ox, pts[i][1]*sc+oy);
+  ctx.stroke();
+}
+
+// ─── 10. Hilbert Curve ───
+function hilbertPts(order) {
+  const n = 1 << order; const pts = [];
+  function d2xy(n,dd) {
+    let x=0,y=0,s,rx,ry,t=dd;
+    for (s=1;s<n;s*=2) {
+      rx=1&(t/2); ry=1&(t^rx);
+      if (ry===0) { if(rx===1){x=s-1-x;y=s-1-y;} [x,y]=[y,x]; }
+      x+=s*rx; y+=s*ry; t=Math.floor(t/4);
+    }
+    return [x,y];
+  }
+  for (let i=0; i<n*n; i++) pts.push(d2xy(n,i));
+  return pts;
+}
+
+function drawHilbert(S) {
+  const d = D();
+  if (d < 0) return;
+  const order = d + 1; // step 1 → order 1
+  if (order > 8) return;
+  const pts = hilbertPts(order);
+  const n = 1 << order;
+  const pad = 2 + lw/2;
+  const cw = (S-2*pad) / (n-1||1);
+  ctx.strokeStyle = '#b83a22';
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pad+pts[0][0]*cw, pad+pts[0][1]*cw);
+  for (let i=1; i<pts.length; i++) ctx.lineTo(pad+pts[i][0]*cw, pad+pts[i][1]*cw);
+  ctx.stroke();
+}
+
+// ─── Hilbert Curve (teaching) ───
+function drawHilbertTeach(S) {
+  const d = D();
+  if (d < 0) return;
+  const order = d + 1;
+  if (order > 8) return;
+  const pts = hilbertPts(order);
+  const n = 1 << order;
+  const pad = 2 + lw/2;
+  const cw = (S-2*pad) / (n-1||1);
+  function px(i) { return pad + pts[i][0]*cw; }
+  function py(i) { return pad + pts[i][1]*cw; }
+
+  // The 4 sub-curves each have qsize points; connectors are between them
+  const qsize = Math.pow(4, order-1);
+  const connectors = new Set();
+  if (order >= 2) {
+    // Segment from point i to i+1 is a connector at these i values:
+    connectors.add(qsize - 1);
+    connectors.add(2*qsize - 1);
+    connectors.add(3*qsize - 1);
+  }
+
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.lineWidth = lw;
+
+  // Draw solid segments
+  ctx.strokeStyle = '#b83a22';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(0));
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (connectors.has(i)) {
+      ctx.stroke(); // finish solid run
+      ctx.beginPath();
+      ctx.moveTo(px(i+1), py(i+1));
+    } else {
+      ctx.lineTo(px(i+1), py(i+1));
+    }
+  }
+  ctx.stroke();
+
+  // Draw dotted connector segments
+  if (connectors.size > 0) {
+    ctx.strokeStyle = '#b83a22';
+    ctx.setLineDash([lw*2, lw*3]);
+    ctx.beginPath();
+    for (const i of connectors) {
+      ctx.moveTo(px(i), py(i));
+      ctx.lineTo(px(i+1), py(i+1));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ─── Hilbert Curve (guidelines) ───
+function drawHilbertGuide(S) {
+  const d = D();
+  if (d < 0) return;
+  const order = d + 1;
+  const n = 1 << order;
+  // Same positioning as drawHilbert
+  const pad = 2 + lw/2;
+  const cw = (S-2*pad) / (n-1||1);
+  // Lines at exact Hilbert point positions
+  const first = pad, last = pad + (n-1)*cw;
+  ctx.strokeStyle = '#AAAAAA';
+  ctx.lineWidth = Math.max(0.3, lw / 2);
+  ctx.setLineDash([lw * 1.5, lw * 1.5]);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  // n vertical lines + n horizontal lines at point coordinates
+  for (let i = 0; i < n; i++) {
+    const p = pad + i*cw;
+    ctx.beginPath(); ctx.moveTo(p, first); ctx.lineTo(p, last); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(first, p); ctx.lineTo(last, p); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+// ─── 11. Vicsek Fractal ───
+function drawVicsek(S) {
+  const d = step;
+  const pad = 2; const side = S-2*pad;
+  ctx.fillStyle = '#1a5040';
+  if (d === 0) { ctx.fillRect(pad,pad,side,side); return; }
+  function rec(x,y,s,dep) {
+    if (dep===0) { const e=0.5; ctx.fillRect(Math.floor(x),Math.floor(y),Math.ceil(s+e),Math.ceil(s+e)); return; }
+    const t = s/3;
+    for (const [i,j] of [[1,1],[1,0],[1,2],[0,1],[2,1]]) rec(x+i*t,y+j*t,t,dep-1);
+  }
+  rec(pad,pad,side,d);
+}
+
+// ─── 12. Cantor Dust (4 corners) ───
+function drawCantorDust(S) {
+  const d = step;
+  const pad = 2; const side = S-2*pad;
+  ctx.fillStyle = '#1a2744';
+  if (d === 0) { ctx.fillRect(pad,pad,side,side); return; }
+  function rec(x,y,s,dep) {
+    if (dep===0) { const e=0.5; ctx.fillRect(Math.floor(x),Math.floor(y),Math.ceil(s+e),Math.ceil(s+e)); return; }
+    const t = s/3;
+    rec(x,       y,       t, dep-1);
+    rec(x+2*t,   y,       t, dep-1);
+    rec(x,       y+2*t,   t, dep-1);
+    rec(x+2*t,   y+2*t,   t, dep-1);
+  }
+  rec(pad,pad,side,d);
+}
+
+// ─── 13. Sierpiński Carpet (outline) ───
+function drawSCO(S) {
+  const d = step;
+  const pad = 2; const side = S-2*pad;
+  ctx.strokeStyle = '#1a2744';
+  ctx.lineWidth = lw;
+  ctx.strokeRect(pad, pad, side, side);
+  if (d === 0) return;
+  ctx.fillStyle = '#1a2744';
+  function rec(x,y,s,dep) {
+    if (dep > d) return;
+    const t = s/3;
+    const e = 0.5;
+    ctx.fillRect(Math.floor(x+t), Math.floor(y+t), Math.ceil(t+e), Math.ceil(t+e));
+    for (let i=0; i<3; i++)
+      for (let j=0; j<3; j++)
+        if (!(i===1 && j===1))
+          rec(x+i*t, y+j*t, t, dep+1);
+  }
+  rec(pad, pad, side, 1);
+}
+
+// ─── 14. Vicsek Fractal (outline) ───
+function drawVicsekO(S) {
+  const d = step;
+  const pad = 2; const side = S-2*pad;
+  ctx.strokeStyle = '#1a5040';
+  ctx.lineWidth = lw;
+  ctx.strokeRect(pad, pad, side, side);
+  if (d === 0) return;
+  ctx.fillStyle = '#1a5040';
+  function rec(x,y,s,dep) {
+    if (dep > d) return;
+    const t = s/3;
+    const e = 0.5; // overlap to prevent gaps
+    ctx.fillRect(Math.floor(x),         Math.floor(y),         Math.ceil(t+e), Math.ceil(t+e));
+    ctx.fillRect(Math.floor(x+2*t),     Math.floor(y),         Math.ceil(t+e), Math.ceil(t+e));
+    ctx.fillRect(Math.floor(x),         Math.floor(y+2*t),     Math.ceil(t+e), Math.ceil(t+e));
+    ctx.fillRect(Math.floor(x+2*t),     Math.floor(y+2*t),     Math.ceil(t+e), Math.ceil(t+e));
+    for (const [i,j] of [[1,1],[1,0],[1,2],[0,1],[2,1]])
+      rec(x+i*t, y+j*t, t, dep+1);
+  }
+  rec(pad, pad, side, 1);
+}
+
+// ─── 15. Cantor Dust (outline) ───
+function drawCantorDustO(S) {
+  const d = step;
+  const pad = 2; const side = S-2*pad;
+  ctx.strokeStyle = '#1a2744';
+  ctx.lineWidth = lw;
+  ctx.strokeRect(pad, pad, side, side);
+  if (d === 0) return;
+  ctx.fillStyle = '#1a2744';
+  function rec(x,y,s,dep) {
+    if (dep > d) return;
+    const t = s/3;
+    const e = 0.5;
+    const fx = Math.floor(x), fy = Math.floor(y), ct = Math.ceil(t+e);
+    // Fill the 5 non-corner positions: center + 4 edge-centers
+    ctx.fillRect(Math.floor(x+t),   fy,               ct, ct);
+    ctx.fillRect(fx,                 Math.floor(y+t),  ct, ct);
+    ctx.fillRect(Math.floor(x+t),   Math.floor(y+t),  ct, ct);
+    ctx.fillRect(Math.floor(x+2*t), Math.floor(y+t),  ct, ct);
+    ctx.fillRect(Math.floor(x+t),   Math.floor(y+2*t),ct, ct);
+    // Recurse into 4 corner squares
+    rec(x,     y,     t, dep+1);
+    rec(x+2*t, y,     t, dep+1);
+    rec(x,     y+2*t, t, dep+1);
+    rec(x+2*t, y+2*t, t, dep+1);
+  }
+  rec(pad, pad, side, 1);
+}
+
+// ─── Trapezoid Fractal ───
+function drawTrapezoid(S) {
+  const d = D();
+  if (d < 0) return;
+  const pad = 2;
+  const bw = S - 2*pad;
+  const tw = bw * 0.5;
+  const th = bw * 0.5;
+  const ox = pad, oy = (S - th) / 2;
+
+  // Right trapezoid (v0,v1,v2,v3):
+  // v0→v1: leg (⊥), v1→v2: short side, v2→v3: hypotenuse, v3→v0: long side
+  // Right angles at v0 and v1
+  const V0 = [ox, oy+th], V1 = [ox, oy], V2 = [ox+tw, oy], V3 = [ox+bw, oy+th];
+
+  ctx.strokeStyle = '#1a2744';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  const rs = 0.75, rl = 0.25, rh = 0.75;
+
+  function rec(v0, v1, v2, v3, dep) {
+    ctx.lineWidth = Math.max(0.2, lw * Math.pow(0.7, dep));
+    ctx.beginPath();
+    ctx.moveTo(v0[0],v0[1]); ctx.lineTo(v1[0],v1[1]);
+    ctx.lineTo(v2[0],v2[1]); ctx.lineTo(v3[0],v3[1]);
+    ctx.closePath(); ctx.stroke();
+    if (dep >= d) return;
+
+    const leg = [v1[0]-v0[0], v1[1]-v0[1]];
+    const sd = [v2[0]-v1[0], v2[1]-v1[1]];
+    const hyp = [v3[0]-v2[0], v3[1]-v2[1]];
+
+    // E: on short side v1→v2 at fraction rs
+    const E = [v1[0]+rs*sd[0], v1[1]+rs*sd[1]];
+    // F: E projected down by leg (onto long side)
+    const F = [E[0]-leg[0], E[1]-leg[1]];
+    // G: on leg v0→v1 at fraction rl
+    const G = [v0[0]+rl*leg[0], v0[1]+rl*leg[1]];
+    // H: on segment F→E at fraction rh
+    const H = [F[0]+rh*leg[0], F[1]+rh*leg[1]];
+    // J: from H in direction of short side, intersect hypotenuse v2→v3
+    const det = sd[0]*(-hyp[1]) - sd[1]*(-hyp[0]);
+    let J;
+    if (Math.abs(det) < 1e-10) {
+      J = [(v2[0]+v3[0])/2, (v2[1]+v3[1])/2];
+    } else {
+      const s = (sd[0]*(v2[1]-H[1]) - sd[1]*(v2[0]-H[0])) / det;
+      J = [v2[0]+s*hyp[0], v2[1]+s*hyp[1]];
+    }
+
+    rec(F, v0, G, H, dep+1);   // bottom-left
+    rec(v1, E, H, G, dep+1);   // top-left
+    rec(H, E, v2, J, dep+1);   // top-right
+    rec(F, H, J, v3, dep+1);   // bottom-right
+  }
+
+  rec(V0, V1, V2, V3, 0);
+}
+
+// ═══════════════════════════════════════════
+const DRAW = [drawST, drawSTI, drawSC, drawSCO, drawCantor, drawHTree, drawTSQ, drawTree, drawPythTree, drawPythTreeEq, drawKochCurve, drawKoch, drawLevy, drawHilbert, drawHilbertTeach, drawHilbertGuide, drawVicsek, drawVicsekO, drawCantorDust, drawCantorDustO, drawTrapezoid];
+
+function render() {
+  cv.width = sz; cv.height = sz;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,sz,sz);
+  try {
+    if (guides && GUIDES[cur]) GUIDES[cur](sz);
+    DRAW[cur](sz);
+    if (guides && GUIDES_TOP[cur]) GUIDES_TOP[cur](sz);
+  } catch(e) { console.error(e); }
+  document.getElementById('dv').textContent = `/ ${F[cur].mx + 1}`;
+}
+
+// ═══════════════════════════════════════════
+//  UI
+// ═══════════════════════════════════════════
+function buildUI() {
+  const sb = document.getElementById('sb-list');
+  const tb = document.getElementById('topbar');
+  let lg = '';
+  F.forEach((f,i) => {
+    if (f.g !== lg) { lg=f.g; const g=document.createElement('div'); g.className='grp'; g.textContent=f.g; sb.appendChild(g); }
+    const b = document.createElement('button');
+    b.className = 'sbtn'+(i===0?' on':'');
+    b.innerHTML = `<span class="n">${i+1}</span>${f.name}`;
+    b.onclick = () => sel(i);
+    sb.appendChild(b);
+    const c = document.createElement('button');
+    c.className = 'chip'+(i===0?' on':'');
+    c.textContent = `${i+1}. ${f.name}`;
+    c.onclick = () => sel(i);
+    tb.appendChild(c);
+  });
+}
+
+function sel(i) {
+  cur = i;
+  const mx = F[i].mx + 1;
+  if (step > mx) step = mx;
+  document.getElementById('sv').textContent = step;
+  document.querySelectorAll('.sbtn').forEach((b,j) => b.classList.toggle('on',j===i));
+  document.querySelectorAll('.chip').forEach((c,j) => c.classList.toggle('on',j===i));
+  document.getElementById('fname').textContent = F[i].name;
+  document.getElementById('frule').textContent = F[i].rule;
+  render();
+}
+
+// Step +/-
+function minStep() { return 0; }
+document.getElementById('step-down').addEventListener('click', () => {
+  if (step > minStep()) { step--; document.getElementById('sv').textContent = step; render(); }
+});
+document.getElementById('step-up').addEventListener('click', () => {
+  if (step < F[cur].mx+1) { step++; document.getElementById('sv').textContent = step; render(); }
+});
+
+// Line width +/-
+document.getElementById('lw-down').addEventListener('click', () => {
+  if (lw > 0.5) { lw = Math.round((lw - 0.5)*10)/10; document.getElementById('lwv').textContent = lw; render(); }
+});
+document.getElementById('lw-up').addEventListener('click', () => {
+  if (lw < 20) { lw = Math.round((lw + 0.5)*10)/10; document.getElementById('lwv').textContent = lw; render(); }
+});
+
+// Size
+document.getElementById('applysz').addEventListener('click', () => {
+  const v = +document.getElementById('szinp').value;
+  if (v >= 100 && v <= 8000) { sz = v; render(); }
+});
+document.getElementById('szinp').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('applysz').click(); });
+
+// Save
+document.getElementById('savebtn').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.download = `${F[cur].id}_step${step}_${sz}px.png`;
+  a.href = cv.toDataURL('image/png');
+  a.click();
+});
+
+// Guidelines
+document.getElementById('guidescb').addEventListener('change', e => {
+  guides = e.target.checked;
+  render();
+});
+
+buildUI();
+sel(0);
+</script>
+</body>
+</html>

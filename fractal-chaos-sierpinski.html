@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Hidden Triangle Game (Chaos Game)</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #764ba2;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        
+        canvas {
+            display: block;
+            margin: 20px auto;
+            border: 3px solid #764ba2;
+            border-radius: 10px;
+            background: #fafafa;
+            cursor: crosshair;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 140px;
+        }
+        
+        @media (max-width: 600px) {
+            button {
+                padding: 10px 16px;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            
+            .stat {
+                display: block;
+                margin: 5px 0;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .btn-step {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-auto {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-fast {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .btn-reset {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-stop {
+            background: #9E9E9E;
+            color: white;
+        }
+        
+        .info-panel {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .stat {
+            display: inline-block;
+            margin: 10px 20px;
+            font-size: 18px;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+            color: #764ba2;
+        }
+        
+        .stat-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+        }
+        
+        .current-roll {
+            text-align: center;
+            font-size: 24px;
+            margin: 15px 0;
+            min-height: 30px;
+            font-weight: bold;
+        }
+        
+        .corner-a { color: #e74c3c; }
+        .corner-b { color: #3498db; }
+        .corner-c { color: #2ecc71; }
+        
+        .instructions {
+            background: #fff9e6;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+            margin: 20px 0;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #f39c12;
+        }
+        
+        .milestone {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: bold;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .milestone-60 { background: #d4edda; color: #155724; }
+        .milestone-120 { background: #cce5ff; color: #004085; }
+        .milestone-200 { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 The Hidden Triangle Game 🎲</h1>
+        <div class="subtitle">Watch chaos become order!</div>
+        
+        <div class="instructions">
+            <h3>📋 How it works:</h3>
+            <p>
+                1. Click anywhere inside the triangle to place your starting dot<br>
+                2. Click "Roll & Plot" to roll the die and plot the next dot halfway to that corner<br>
+                3. Keep going... a magical pattern will appear!
+            </p>
+        </div>
+        
+        <canvas id="canvas"></canvas>
+        
+        <div class="current-roll" id="rollDisplay"></div>
+        
+        <div class="info-panel">
+            <div class="stat">
+                <span class="stat-label">Dots Plotted:</span>
+                <span class="stat-value" id="dotCount">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Last Corner:</span>
+                <span class="stat-value" id="lastCorner">-</span>
+            </div>
+        </div>
+        
+        <div id="milestone"></div>
+        
+        <div class="controls">
+            <button class="btn-step" onclick="stepOnce()">🎲 Roll & Plot (1 dot)</button>
+            <button class="btn-auto" onclick="autoRun()" id="autoBtn">▶️ Auto Run (Slow)</button>
+            <button class="btn-fast" onclick="fastRun()" id="fastBtn">⚡ Fast (10 per step)</button>
+            <button class="btn-stop" onclick="stopAuto()" id="stopBtn" style="display:none;">⏸️ Stop</button>
+            <button class="btn-reset" onclick="reset()">🔄 Reset</button>
+        </div>
+        
+        <div class="instructions">
+            <h3>🔍 What to watch for:</h3>
+            <p>
+                • After <strong>60 dots</strong>: You'll start to see the pattern<br>
+                • After <strong>120 dots</strong>: The triangle becomes clearer<br>
+                • After <strong>200 dots</strong>: Sharp and beautiful!<br>
+                • The pattern is called a <strong>Sierpiński triangle</strong> - a famous fractal!
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Make canvas responsive
+        let canvasWidth, canvasHeight, scale;
+        
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth - 60; // Account for padding
+            canvasWidth = Math.min(700, containerWidth);
+            canvasHeight = canvasWidth * 0.93; // Maintain aspect ratio (650/700)
+            
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            scale = canvasWidth / 700;
+            
+            updateCorners();
+            redraw();
+        }
+        
+        // Triangle corners (will be scaled)
+        let corners = {};
+        
+        function updateCorners() {
+            corners = {
+                A: { x: 350 * scale, y: 50 * scale, color: '#e74c3c', label: 'A' },
+                B: { x: 50 * scale, y: 600 * scale, color: '#3498db', label: 'B' },
+                C: { x: 650 * scale, y: 600 * scale, color: '#2ecc71', label: 'C' }
+            };
+        }
+        
+        let currentPoint = null;
+        let dotCount = 0;
+        let autoInterval = null;
+        let waitingForStart = true;
+        let allDots = []; // Store all dots for redrawing
+        
+        function drawTriangle() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw triangle outline
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(corners.A.x, corners.A.y);
+            ctx.lineTo(corners.B.x, corners.B.y);
+            ctx.lineTo(corners.C.x, corners.C.y);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Draw corner labels and dots
+            const fontSize = Math.max(16, 24 * scale);
+            ctx.font = `bold ${fontSize}px Arial`;
+            for (let key in corners) {
+                const corner = corners[key];
+                
+                // Draw corner dot
+                ctx.fillStyle = corner.color;
+                ctx.beginPath();
+                ctx.arc(corner.x, corner.y, 8 * scale, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw label
+                ctx.fillStyle = corner.color;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let offsetX = 0, offsetY = 0;
+                if (key === 'A') offsetY = -25 * scale;
+                if (key === 'B') offsetX = -25 * scale;
+                if (key === 'C') offsetX = 25 * scale;
+                ctx.fillText(corner.label, corner.x + offsetX, corner.y + offsetY);
+            }
+        }
+        
+        function redraw() {
+            drawTriangle();
+            // Redraw all dots
+            allDots.forEach(dot => {
+                plotDot(dot.x, dot.y);
+            });
+        }
+        
+        function rollDie() {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            if (roll <= 2) return 'A';
+            if (roll <= 4) return 'B';
+            return 'C';
+        }
+        
+        function plotDot(x, y) {
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(x, y, 1.5 * scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function stepOnce() {
+            if (waitingForStart) {
+                alert('Click inside the triangle to place your starting dot first!');
+                return;
+            }
+            
+            const cornerKey = rollDie();
+            const corner = corners[cornerKey];
+            
+            // Calculate midpoint
+            const newX = (currentPoint.x + corner.x) / 2;
+            const newY = (currentPoint.y + corner.y) / 2;
+            
+            plotDot(newX, newY);
+            allDots.push({ x: newX, y: newY });
+            currentPoint = { x: newX, y: newY };
+            dotCount++;
+            
+            updateDisplay(cornerKey);
+            checkMilestone();
+        }
+        
+        function updateDisplay(cornerKey) {
+            document.getElementById('dotCount').textContent = dotCount;
+            document.getElementById('lastCorner').textContent = cornerKey;
+            document.getElementById('lastCorner').className = 'stat-value corner-' + cornerKey.toLowerCase();
+            
+            const dieRoll = cornerKey === 'A' ? '1-2' : (cornerKey === 'B' ? '3-4' : '5-6');
+            document.getElementById('rollDisplay').innerHTML = 
+                `🎲 Rolled ${dieRoll} → Moving to corner <span class="corner-${cornerKey.toLowerCase()}">${cornerKey}</span>`;
+        }
+        
+        function checkMilestone() {
+            const milestoneDiv = document.getElementById('milestone');
+            if (dotCount === 60) {
+                milestoneDiv.innerHTML = '<div class="milestone milestone-60">🎯 60 dots! The pattern is starting to emerge!</div>';
+            } else if (dotCount === 120) {
+                milestoneDiv.innerHTML = '<div class="milestone milestone-120">✨ 120 dots! The triangle is getting clear!</div>';
+            } else if (dotCount === 200) {
+                milestoneDiv.innerHTML = '<div class="milestone milestone-200">🌟 200 dots! Beautiful Sierpiński triangle!</div>';
+            }
+        }
+        
+        function autoRun() {
+            if (waitingForStart) {
+                alert('Click inside the triangle to place your starting dot first!');
+                return;
+            }
+            if (autoInterval) return;
+            
+            document.getElementById('autoBtn').style.display = 'none';
+            document.getElementById('fastBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            
+            autoInterval = setInterval(stepOnce, 100);
+        }
+        
+        function fastRun() {
+            if (waitingForStart) {
+                alert('Click inside the triangle to place your starting dot first!');
+                return;
+            }
+            if (autoInterval) return;
+            
+            document.getElementById('autoBtn').style.display = 'none';
+            document.getElementById('fastBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            
+            autoInterval = setInterval(() => {
+                for (let i = 0; i < 10; i++) {
+                    stepOnce();
+                }
+            }, 50);
+        }
+        
+        function stopAuto() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+            document.getElementById('autoBtn').style.display = 'inline-block';
+            document.getElementById('fastBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+        
+        function reset() {
+            stopAuto();
+            currentPoint = null;
+            dotCount = 0;
+            waitingForStart = true;
+            allDots = [];
+            drawTriangle();
+            document.getElementById('dotCount').textContent = '0';
+            document.getElementById('lastCorner').textContent = '-';
+            document.getElementById('rollDisplay').innerHTML = '';
+            document.getElementById('milestone').innerHTML = '';
+        }
+        
+        function isPointInTriangle(p, a, b, c) {
+            const area = Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) / 2;
+            const area1 = Math.abs((a.x - p.x) * (b.y - p.y) - (b.x - p.x) * (a.y - p.y)) / 2;
+            const area2 = Math.abs((b.x - p.x) * (c.y - p.y) - (c.x - p.x) * (b.y - p.y)) / 2;
+            const area3 = Math.abs((c.x - p.x) * (a.y - p.y) - (a.x - p.x) * (c.y - p.y)) / 2;
+            return Math.abs(area - (area1 + area2 + area3)) < 1;
+        }
+        
+        canvas.addEventListener('click', function(e) {
+            if (!waitingForStart) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Scale the click coordinates to canvas coordinates
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const canvasX = x * scaleX;
+            const canvasY = y * scaleY;
+            
+            if (isPointInTriangle({x: canvasX, y: canvasY}, corners.A, corners.B, corners.C)) {
+                currentPoint = { x: canvasX, y: canvasY };
+                plotDot(canvasX, canvasY);
+                allDots.push({ x: canvasX, y: canvasY });
+                waitingForStart = false;
+                document.getElementById('rollDisplay').innerHTML = '✅ Starting dot placed! Now click "Roll & Plot" to begin!';
+            } else {
+                alert('Please click inside the triangle!');
+            }
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initialize
+        resizeCanvas();
+    </script>
+</body>
+</html>

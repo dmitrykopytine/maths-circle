@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fractal Zoom Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', 'Segoe UI', sans-serif;
+    background: #0a0a0f; color: #e0e0e8;
+    min-height: 100vh; padding: 16px;
+    overflow-x: hidden; max-width: 100vw;
+  }
+  h1 {
+    font-size: 28px; font-weight: 700;
+    background: linear-gradient(135deg, #ff6b4a, #ffa53d, #ffd93d);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+  .subtitle { font-size: 14px; color: #888; margin: 6px 0 0; }
+  .row { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  .row.mt12 { margin-top: 12px; }
+  .row.mt14 { margin-top: 14px; }
+  .row.mb16 { margin-bottom: 16px; }
+  .center { text-align: center; }
+
+  /* Fractal tab buttons */
+  .tab {
+    padding: 10px 20px; border-radius: 8px; border: 2px solid #2a2a35;
+    background: #12121a; color: #888; font-weight: 400;
+    font-size: 14px; cursor: pointer; transition: all 0.2s;
+    font-family: inherit;
+  }
+  .tab.active { border-color: #ff8c42; background: #2a1a0e; color: #ffb347; font-weight: 700; }
+
+  /* Info bar */
+  .info-bar {
+    text-align: center; margin-bottom: 16px; padding: 12px 16px;
+    background: #12121a; border-radius: 10px; border: 1px solid #1e1e2a;
+    font-size: 13px; color: #aaa;
+  }
+  .formula { font-family: 'JetBrains Mono', monospace; color: #ff8c42; font-size: 12px; }
+
+  /* Canvas wrapper */
+  .canvas-wrap {
+    position: relative; border-radius: 10px; overflow: hidden;
+    border: 2px solid #1e1e2a; line-height: 0;
+    width: 100%; margin: 0 auto;
+    cursor: crosshair;
+  }
+  .canvas-wrap canvas {
+    width: 100%; height: auto; display: block;
+  }
+
+  /* Progress bar overlay */
+  .progress-bar-wrap {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+    padding: 10px 16px; display: none; align-items: center; gap: 12px;
+  }
+  .progress-bar-wrap.visible { display: flex; }
+  .progress-track { flex: 1; height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+  .progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #ff6b4a, #ffa53d, #ffd93d);
+    border-radius: 3px; transition: width 0.15s ease-out;
+  }
+  .progress-pct {
+    font-size: 13px; color: #ffb347;
+    font-family: 'JetBrains Mono', monospace;
+    min-width: 36px; text-align: right;
+  }
+
+  /* Center point text */
+  .center-display {
+    text-align: center; margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: #ffb347; letter-spacing: 0.3px;
+  }
+  .center-display .sep { color: #555; margin: 0 10px; }
+  .center-display .zoom { color: #888; }
+
+  /* Buttons */
+  .btn {
+    padding: 8px 18px; border-radius: 6px; border: 1px solid #2a2a35;
+    background: #12121a; color: #ddd; font-size: 13px;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn:disabled { background: #0a0a0f; color: #333; cursor: default; }
+  .btn-reset { color: #ff8c42; background: #1a1210; }
+  .btn-reset:disabled { color: #333; background: #0a0a0f; }
+
+  .size-label { font-size: 12px; color: #666; }
+  .size-btn {
+    padding: 4px 10px; border-radius: 4px; border: 1px solid #2a2a35;
+    background: #12121a; color: #666; font-size: 11px;
+    font-family: 'JetBrains Mono', monospace; cursor: pointer;
+  }
+  .size-btn.active { border-color: #ff8c42; background: #1a1208; color: #ff8c42; }
+
+  /* Center input */
+  .center-input-label { font-size: 12px; color: #666; font-family: 'JetBrains Mono', monospace; }
+  #targetInput {
+    padding: 7px 12px; border-radius: 6px; border: 1px solid #2a2a35;
+    background: #0a0a0f; color: #ffb347; font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    width: 300px; max-width: 60vw; outline: none;
+  }
+  #targetInput.valid { border-color: #ff8c42; }
+  .btn-zoom-in {
+    padding: 7px 16px; border-radius: 6px; border: 1px solid #2a2a35;
+    background: #0a0a0f; color: #333; font-size: 12px;
+    font-family: inherit; font-weight: 600; cursor: default;
+  }
+  .btn-zoom-in.active { border-color: #ff8c42; background: #1a1208; color: #ff8c42; cursor: pointer; }
+
+  /* Hue & scheme buttons */
+  .hue-btn {
+    width: 32px; height: 24px; border-radius: 4px; border: 2px solid #2a2a35;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .hue-btn.active { border-color: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.3); }
+  .scheme-btn {
+    padding: 4px 12px; border-radius: 4px; border: 1px solid #2a2a35;
+    background: #12121a; color: #666; font-size: 11px;
+    font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.15s;
+  }
+  .scheme-btn.active { border-color: #ff8c42; background: #1a1208; color: #ff8c42; }
+
+  /* Bounds */
+  .bounds {
+    text-align: center; margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: #444; line-height: 1.8;
+    overflow-wrap: break-word; word-break: break-all; padding: 0 4px;
+  }
+
+  /* Help box */
+  .help-box {
+    max-width: 640px; margin: 24px auto 0; padding: 16px 20px;
+    background: #12121a; border-radius: 10px; border: 1px solid #1e1e2a;
+    font-size: 13px; color: #888; line-height: 1.7;
+  }
+  .help-box .heading { font-weight: 700; color: #bbb; margin-bottom: 6px; }
+  .help-box .heading2 { font-weight: 700; color: #bbb; margin: 10px 0 6px; }
+  .help-box .example { font-family: 'JetBrains Mono', monospace; color: #ffb347; }
+</style>
+</head>
+<body>
+
+<div class="center" style="margin-bottom:20px">
+  <h1>Fractal Zoom Explorer</h1>
+  <p class="subtitle">Maths Club — Click anywhere to zoom in 3×</p>
+</div>
+
+<div class="row mb16" id="fractalTabs"></div>
+
+<div class="info-bar" id="infoBar"></div>
+
+<div style="display:flex;justify-content:center;position:relative">
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="fractalCanvas"></canvas>
+    <div class="progress-bar-wrap" id="progressWrap">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-pct" id="progressPct">0%</span>
+    </div>
+  </div>
+</div>
+
+<div class="center-display" id="centerDisplay"></div>
+
+<div class="row mt14" id="controls"></div>
+
+<div class="row mt12" style="align-items:center">
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#888">
+    <input type="checkbox" id="smoothCheck" style="accent-color:#ff8c42;width:16px;height:16px;cursor:pointer">
+    <span>Adaptive smoothing</span>
+  </label>
+</div>
+
+<div class="row mt12" style="align-items:center;gap:10px">
+  <span style="font-size:12px;color:#666">Hue:</span>
+  <div id="hueButtons" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+</div>
+
+<div class="row mt12" style="align-items:center;gap:10px">
+  <span style="font-size:12px;color:#666">Style:</span>
+  <div id="schemeButtons" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+</div>
+
+<div class="row mt12" id="centerInputRow">
+  <span class="center-input-label">center:</span>
+  <input type="text" id="targetInput">
+  <button class="btn-zoom-in" id="btnZoomIn">Zoom In ▶</button>
+</div>
+
+<div class="bounds" id="boundsInfo"></div>
+
+<div class="help-box">
+  <div class="heading">🔍 How to explore</div>
+  <b>Click</b> anywhere on the image to zoom in 3× at that point.
+  Use <b>Zoom Out</b> to zoom 3× out from the current center.
+  Type coordinates into the <b>center</b> field (e.g. <span class="example">-0.745, 0.113</span>) and press <b>Zoom In</b> — an orange rectangle will preview the target area.
+  The most interesting detail is at the <b>boundary</b> between black (inside) and colour (outside)!
+  <div class="heading2">🎨 How the colour works</div>
+  Each pixel is a number <i>c</i> on the complex plane. We iterate the formula and count steps to "escape."
+  Smooth colouring (μ = n + 1 − log(log|z|)/log 2) maps step count to the <b>selected palette</b>.
+  Points that <i>never</i> escape are <b style="color:#fff">black</b> — they're inside the fractal.
+</div>
+
+<script>
+// ─── Fractal definitions ──────────────────────────────────────────────
+const FRACTALS = {
+  mandelbrot: {
+    label: "Mandelbrot Set", formula: "z → z² + c",
+    description: "Click anywhere on the fractal boundary to zoom in 3×. The deeper you go, the more patterns repeat!",
+    initCx: -0.5, initCy: 0.0, initW: 3.5,
+  },
+  burning_ship: {
+    label: "Burning Ship", formula: "z → (|Re(z)| + i·|Im(z)|)² + c",
+    description: "Click to zoom into the jagged angular shapes. Look for repeating patterns at every scale!",
+    initCx: -0.3, initCy: 0.5, initW: 4.5,
+  },
+  tricorn: {
+    label: "Tricorn (Mandelbar)", formula: "z → conj(z)² + c",
+    description: "A three-horned fractal. Click the boundary to zoom in and discover self-similar spiky structures!",
+    initCx: -0.3, initCy: 0.0, initW: 5.0,
+  },
+};
+
+// ─── State ────────────────────────────────────────────────────────────
+let fractalKey = "mandelbrot";
+let cx, cy, w, resolution = 800;
+let computing = false;
+let abortFlag = false;
+let cachedImageData = null;
+
+function fractal() { return FRACTALS[fractalKey]; }
+function resetView() { cx = fractal().initCx; cy = fractal().initCy; w = fractal().initW; }
+resetView();
+
+// ─── DOM refs ─────────────────────────────────────────────────────────
+const canvas = document.getElementById("fractalCanvas");
+const ctx = canvas.getContext("2d");
+const canvasWrap = document.getElementById("canvasWrap");
+const progressWrap = document.getElementById("progressWrap");
+const progressFill = document.getElementById("progressFill");
+const progressPct = document.getElementById("progressPct");
+const centerDisplay = document.getElementById("centerDisplay");
+const boundsInfo = document.getElementById("boundsInfo");
+const infoBar = document.getElementById("infoBar");
+const targetInput = document.getElementById("targetInput");
+const btnZoomIn = document.getElementById("btnZoomIn");
+const smoothCheck = document.getElementById("smoothCheck");
+
+// ─── Computation ──────────────────────────────────────────────────────
+function computeSetup(type, cx, cy, w, Wpx, Hpx, baseIter) {
+  const zoomFactor = FRACTALS[type].initW / w;
+  const maxIter = Math.floor(baseIter + 120 * Math.log10(Math.max(1.0, zoomFactor)));
+  const h = w; // square
+  return { maxIter, xMin: cx - w/2, xMax: cx + w/2, yMin: cy - h/2, yMax: cy + h/2, Wpx, Hpx, type };
+}
+
+// Single-point iteration (for supersampling)
+function computePoint(type, cr, ci, maxIter) {
+  let zr = 0, zi = 0;
+  const LOG2 = Math.log(2);
+  for (let n = 0; n < maxIter; n++) {
+    let tr, ti;
+    if (type === "mandelbrot") {
+      tr = zr*zr - zi*zi + cr; ti = 2*zr*zi + ci;
+    } else if (type === "burning_ship") {
+      const ar = Math.abs(zr), ai = -Math.abs(zi);
+      tr = ar*ar - ai*ai + cr; ti = 2*ar*ai + ci;
+    } else {
+      tr = zr*zr - zi*zi + cr; ti = -2*zr*zi + ci;
+    }
+    zr = tr; zi = ti;
+    if (zr*zr + zi*zi > 256) {
+      return n + 1 - Math.log(Math.log(Math.sqrt(zr*zr + zi*zi))) / LOG2;
+    }
+  }
+  return -1; // inside
+}
+
+function computeRows(setup, rowStart, rowEnd) {
+  const { maxIter, xMin, xMax, yMin, yMax, Wpx, Hpx, type } = setup;
+  const count = (rowEnd - rowStart) * Wpx;
+  const mu = new Float64Array(count);
+  const inside = new Uint8Array(count);
+  const LOG2 = Math.log(2);
+  for (let py = rowStart; py < rowEnd; py++) {
+    const yVal = yMax - (py / (Hpx - 1)) * (yMax - yMin);
+    for (let px = 0; px < Wpx; px++) {
+      const xVal = xMin + (px / (Wpx - 1)) * (xMax - xMin);
+      const cr = xVal, ci = yVal;
+      let zr = 0, zi = 0, n = 0, escaped = false;
+      for (; n < maxIter; n++) {
+        let tr, ti;
+        if (type === "mandelbrot") {
+          tr = zr*zr - zi*zi + cr; ti = 2*zr*zi + ci;
+        } else if (type === "burning_ship") {
+          const ar = Math.abs(zr), ai = -Math.abs(zi);
+          tr = ar*ar - ai*ai + cr; ti = 2*ar*ai + ci;
+        } else {
+          tr = zr*zr - zi*zi + cr; ti = -2*zr*zi + ci;
+        }
+        zr = tr; zi = ti;
+        if (zr*zr + zi*zi > 256) { escaped = true; break; }
+      }
+      const idx = (py - rowStart) * Wpx + px;
+      if (!escaped) { inside[idx] = 1; mu[idx] = maxIter; }
+      else { mu[idx] = n + 1 - Math.log(Math.log(Math.sqrt(zr*zr + zi*zi))) / LOG2; }
+    }
+  }
+  return { mu, inside };
+}
+
+// ─── Color system: hue rotation + scheme transforms ─────────────────
+// Original hand-crafted warm palette (the one that looked great)
+const BASE_STOPS_RGB = [
+  { t:0,    r:30,  g:2,   b:0   },
+  { t:0.15, r:120, g:10,  b:0   },
+  { t:0.3,  r:200, g:40,  b:5   },
+  { t:0.45, r:230, g:100, b:10  },
+  { t:0.6,  r:245, g:160, b:30  },
+  { t:0.75, r:255, g:210, b:80  },
+  { t:0.9,  r:255, g:240, b:160 },
+  { t:1.0,  r:255, g:252, b:220 },
+];
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = 0; s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return [h * 360, s, l];
+}
+
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360 / 360;
+  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [
+    Math.round(hue2rgb(p, q, h + 1/3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1/3) * 255),
+  ];
+}
+
+// Convert base palette to HSL once
+const BASE_HSL = BASE_STOPS_RGB.map(s => {
+  const [h, sat, l] = rgbToHsl(s.r, s.g, s.b);
+  return { t: s.t, h, s: sat, l };
+});
+const BASE_HUE_CENTER = 20; // approximate center of the warm palette
+
+// Hue choices: offset from base warm center
+const HUES = {
+  fire:     { label: "Fire",     offset: 0   },
+  ocean:    { label: "Ocean",    offset: 195  },
+  forest:   { label: "Forest",   offset: 115  },
+  amethyst: { label: "Amethyst", offset: 255  },
+  rose:     { label: "Rose",     offset: 320  },
+  gold:     { label: "Gold",     offset: 25   },
+};
+
+// Scheme: transforms applied to lightness and saturation
+const SCHEMES = {
+  classic:  { label: "Classic",  lMap: l => l,                             sMap: s => s },
+  bright:   { label: "Bright",   lMap: l => 0.35 + l * 0.60,              sMap: s => s * 0.85 },
+  vivid:    { label: "Vivid",    lMap: l => 0.06 + l * 0.88,              sMap: s => Math.min(1, s * 1.15) },
+  pastel:   { label: "Pastel",   lMap: l => 0.55 + l * 0.40,              sMap: s => s * 0.45 },
+  inverted: { label: "Inverted", lMap: l => 0.92 - l * 0.75,              sMap: s => s * 0.90 },
+};
+
+let selectedHue = "fire";
+let selectedScheme = "classic";
+
+function generatePalette() {
+  const hue = HUES[selectedHue];
+  const scheme = SCHEMES[selectedScheme];
+  return BASE_HSL.map(stop => {
+    const newH = stop.h + hue.offset;
+    const newL = Math.max(0, Math.min(1, scheme.lMap(stop.l)));
+    const newS = Math.max(0, Math.min(1, scheme.sMap(stop.s)));
+    const [r, g, b] = hslToRgb(newH, newS, newL);
+    return { t: stop.t, r, g, b };
+  });
+}
+
+function currentPalette() { return generatePalette(); }
+
+function paletteColor(stops, t) {
+  const ct = ((t % 1) + 1) % 1;
+  let i = 0;
+  while (i < stops.length - 2 && stops[i+1].t < ct) i++;
+  const a = stops[i], b = stops[i+1];
+  const f = (ct - a.t) / (b.t - a.t);
+  return [Math.round(a.r+(b.r-a.r)*f), Math.round(a.g+(b.g-a.g)*f), Math.round(a.b+(b.b-a.b)*f)];
+}
+
+// ─── Canvas overlays ──────────────────────────────────────────────────
+function drawInfoStrip(ctx, Wpx, Hpx) {
+  const stripH = Math.round(Hpx / 20);
+  const y = Hpx - stripH;
+  ctx.fillStyle = "rgba(0,0,0,0.75)";
+  ctx.fillRect(0, y, Wpx, stripH);
+  const zoom = Math.round(fractal().initW / w);
+  const prec = Wpx <= 400 ? 6 : Wpx <= 800 ? 8 : 10;
+  const text = "center: (" + cx.toFixed(prec) + ", " + cy.toFixed(prec) + "),  zoom: " + zoom;
+  const fontSize = Math.max(9, Math.round(Wpx / 50));
+  ctx.font = fontSize + "px 'JetBrains Mono', monospace";
+  ctx.fillStyle = "#ffb347";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, Wpx / 2, y + stripH * 0.58);
+}
+
+function drawTargetRect(ctx, Wpx, Hpx, target) {
+  if (!target) return;
+  const h = w;
+  const px = ((target.re - (cx - w/2)) / w) * Wpx;
+  const py = (((cy + h/2) - target.im) / h) * Hpx;
+  const rw = Wpx / 3, rh = Hpx / 3;
+  const left = px - rw/2, top = py - rh/2;
+  ctx.strokeStyle = "rgba(255,180,60,0.9)"; ctx.lineWidth = 3;
+  ctx.strokeRect(left, top, rw, rh);
+  ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 1;
+  ctx.strokeRect(left-2, top-2, rw+4, rh+4);
+}
+
+// ─── Parse target input ──────────────────────────────────────────────
+function parseTarget() {
+  let str = targetInput.value.trim();
+  if (!str) return null;
+  str = str.replace(/[()]/g, "");
+  const parts = str.split(",").map(s => s.trim());
+  if (parts.length !== 2) return null;
+  const re = parseFloat(parts[0]), im = parseFloat(parts[1]);
+  if (isNaN(re) || isNaN(im)) return null;
+  return { re, im };
+}
+
+// ─── Render (chunked, two-pass with optional smoothing) ───────────────
+let renderTimer = null;
+
+function scheduleRender() {
+  abortFlag = true;
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderFractal, 50);
+}
+
+function renderFractal() {
+  const Wpx = resolution, Hpx = resolution;
+  canvas.width = Wpx; canvas.height = Hpx;
+  computing = true;
+  abortFlag = false;
+  showProgress(true, "0%", 0);
+
+  const baseIter = resolution >= 1200 ? 500 : 400;
+  const setup = computeSetup(fractalKey, cx, cy, w, Wpx, Hpx, baseIter);
+  const palette = currentPalette();
+  const BAND = Math.max(4, Math.ceil(Hpx / 40));
+  let row = 0;
+  const fullImageData = ctx.createImageData(Wpx, Hpx);
+  const data = fullImageData.data;
+
+  // Store mu values for smoothing pass
+  const fullMu = new Float64Array(Wpx * Hpx);
+  const fullInside = new Uint8Array(Wpx * Hpx);
+
+  // ─── Pass 1: normal render ───
+  function pass1Chunk() {
+    if (abortFlag) return;
+    const end = Math.min(row + BAND, Hpx);
+    const { mu, inside } = computeRows(setup, row, end);
+
+    for (let py = row; py < end; py++) {
+      for (let px = 0; px < Wpx; px++) {
+        const li = (py - row) * Wpx + px;
+        const gi = py * Wpx + px;
+        const ii = gi * 4;
+        fullMu[gi] = mu[li];
+        fullInside[gi] = inside[li];
+        if (inside[li]) { data[ii]=0; data[ii+1]=0; data[ii+2]=0; data[ii+3]=255; }
+        else {
+          const t = (mu[li] / setup.maxIter) * 3.0;
+          const c = paletteColor(palette, t);
+          data[ii]=c[0]; data[ii+1]=c[1]; data[ii+2]=c[2]; data[ii+3]=255;
+        }
+      }
+    }
+
+    ctx.putImageData(fullImageData, 0, 0);
+    drawInfoStrip(ctx, Wpx, Hpx);
+
+    row = end;
+    const pct = Math.round((row / Hpx) * 100);
+    showProgress(true, pct + "%", pct);
+
+    if (row < Hpx) {
+      setTimeout(pass1Chunk, 0);
+    } else if (smoothCheck.checked) {
+      // Start smoothing pass
+      startPass2();
+    } else {
+      finishRender();
+    }
+  }
+
+  // ─── Pass 2: adaptive supersampling ───
+  function startPass2() {
+    let sRow = 0;
+    const SBAND = Math.max(4, Math.ceil(Hpx / 30));
+    const { xMin, xMax, yMin, yMax, maxIter, type } = setup;
+    const dx = (xMax - xMin) / (Wpx - 1);
+    const dy = (yMax - yMin) / (Hpx - 1);
+    // Threshold: if any neighbor differs by more than this fraction of maxIter, supersample
+    const threshold = maxIter * 0.01;
+
+    showProgress(true, "Smoothing 0%", 0);
+
+    function pass2Chunk() {
+      if (abortFlag) return;
+      const end = Math.min(sRow + SBAND, Hpx);
+
+      for (let py = sRow; py < end; py++) {
+        for (let px = 0; px < Wpx; px++) {
+          const gi = py * Wpx + px;
+          // Check if this pixel is noisy: compare with neighbors
+          let needsSmooth = false;
+          const myMu = fullMu[gi];
+          const myIn = fullInside[gi];
+
+          // Check 4-connected neighbors
+          const neighbors = [];
+          if (px > 0) neighbors.push(gi - 1);
+          if (px < Wpx - 1) neighbors.push(gi + 1);
+          if (py > 0) neighbors.push(gi - Wpx);
+          if (py < Hpx - 1) neighbors.push(gi + Wpx);
+
+          for (let ni = 0; ni < neighbors.length; ni++) {
+            const nb = neighbors[ni];
+            // Noisy if: one inside one outside, or mu differs significantly
+            if (myIn !== fullInside[nb]) { needsSmooth = true; break; }
+            if (!myIn && Math.abs(myMu - fullMu[nb]) > threshold) { needsSmooth = true; break; }
+          }
+
+          if (!needsSmooth) continue;
+
+          // Supersample with 3×3 grid
+          const cxP = xMin + px * dx;
+          const cyP = yMax - py * dy;
+          let rSum = 0, gSum = 0, bSum = 0;
+          const SUB = 3;
+
+          for (let sy = 0; sy < SUB; sy++) {
+            for (let sx = 0; sx < SUB; sx++) {
+              const subCr = cxP + (sx - 1) * dx / SUB;
+              const subCi = cyP - (sy - 1) * dy / SUB;
+              const muVal = computePoint(type, subCr, subCi, maxIter);
+              if (muVal < 0) {
+                // inside — black
+              } else {
+                const t = (muVal / maxIter) * 3.0;
+                const c = paletteColor(palette, t);
+                rSum += c[0]; gSum += c[1]; bSum += c[2];
+              }
+            }
+          }
+
+          const ii = gi * 4;
+          data[ii]   = Math.round(rSum / (SUB * SUB));
+          data[ii+1] = Math.round(gSum / (SUB * SUB));
+          data[ii+2] = Math.round(bSum / (SUB * SUB));
+        }
+      }
+
+      ctx.putImageData(fullImageData, 0, 0);
+      drawInfoStrip(ctx, Wpx, Hpx);
+
+      sRow = end;
+      const pct = Math.round((sRow / Hpx) * 100);
+      showProgress(true, "Smoothing " + pct + "%", pct);
+
+      if (sRow < Hpx) {
+        setTimeout(pass2Chunk, 0);
+      } else {
+        finishRender();
+      }
+    }
+
+    setTimeout(pass2Chunk, 0);
+  }
+
+  function finishRender() {
+    cachedImageData = new ImageData(new Uint8ClampedArray(data), Wpx, Hpx);
+    drawTargetRect(ctx, Wpx, Hpx, parseTarget());
+    drawInfoStrip(ctx, Wpx, Hpx);
+    computing = false;
+    showProgress(false);
+    updateUI();
+  }
+
+  setTimeout(pass1Chunk, 30);
+  updateUI();
+}
+
+// ─── Redraw overlays (no recompute) ───────────────────────────────────
+function redrawOverlays() {
+  if (!cachedImageData || cachedImageData.width !== resolution || computing) return;
+  ctx.putImageData(cachedImageData, 0, 0);
+  drawTargetRect(ctx, resolution, resolution, parseTarget());
+  drawInfoStrip(ctx, resolution, resolution);
+}
+
+// ─── Progress bar ─────────────────────────────────────────────────────
+function showProgress(visible, text, pct) {
+  progressWrap.classList.toggle("visible", !!visible);
+  if (text !== undefined) progressPct.textContent = text;
+  if (pct !== undefined) progressFill.style.width = pct + "%";
+}
+
+// ─── UI update ────────────────────────────────────────────────────────
+function updateUI() {
+  const f = fractal();
+  const isOrig = w >= f.initW;
+  const zf = f.initW / w;
+
+  // Info bar
+  infoBar.innerHTML = '<span class="formula">' + f.formula + '</span> — ' + f.description;
+
+  // Center display
+  centerDisplay.innerHTML =
+    'center: (' + cx.toFixed(10) + ', ' + cy.toFixed(10) + ')' +
+    '<span class="sep">·</span>' +
+    '<span class="zoom">zoom: ' + Math.round(zf) + '</span>';
+
+  // Bounds
+  const h = w;
+  const xMin = (cx - w/2).toFixed(8), xMax = (cx + w/2).toFixed(8);
+  const yMin = (cy - h/2).toFixed(8), yMax = (cy + h/2).toFixed(8);
+  boundsInfo.innerHTML =
+    'width ' + w.toExponential(4) + ' &nbsp;·&nbsp; ' + resolution + '×' + resolution + 'px<br>' +
+    'x ∈ [' + xMin + ', ' + xMax + '] &nbsp; y ∈ [' + yMin + ', ' + yMax + ']';
+
+  // Zoom out / reset buttons
+  const btnOut = document.getElementById("btnZoomOut");
+  const btnReset = document.getElementById("btnReset");
+  if (btnOut) { btnOut.disabled = isOrig; btnOut.style.color = isOrig ? "#333" : "#ddd"; btnOut.style.cursor = isOrig ? "default" : "pointer"; }
+  if (btnReset) { btnReset.disabled = isOrig; btnReset.style.color = isOrig ? "#333" : "#ff8c42"; btnReset.style.cursor = isOrig ? "default" : "pointer"; }
+
+  // Size buttons
+  document.querySelectorAll(".size-btn").forEach(b => {
+    const r = parseInt(b.dataset.res);
+    b.classList.toggle("active", r === resolution);
+  });
+
+  // Fractal tabs
+  document.querySelectorAll(".tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.key === fractalKey);
+  });
+
+  // Target input
+  const pt = parseTarget();
+  targetInput.classList.toggle("valid", !!pt);
+  btnZoomIn.classList.toggle("active", !!pt);
+}
+
+// ─── Build static UI ──────────────────────────────────────────────────
+function buildTabs() {
+  const container = document.getElementById("fractalTabs");
+  container.innerHTML = "";
+  for (const [key, f] of Object.entries(FRACTALS)) {
+    const btn = document.createElement("button");
+    btn.className = "tab" + (key === fractalKey ? " active" : "");
+    btn.dataset.key = key;
+    btn.textContent = f.label;
+    btn.onclick = () => { fractalKey = key; resetView(); targetInput.value = ""; scheduleRender(); updateUI(); };
+    container.appendChild(btn);
+  }
+}
+
+function buildControls() {
+  const container = document.getElementById("controls");
+  container.innerHTML = "";
+
+  // Zoom out
+  const btnOut = document.createElement("button");
+  btnOut.className = "btn"; btnOut.id = "btnZoomOut";
+  btnOut.textContent = "◀ Zoom Out 3×";
+  btnOut.onclick = () => {
+    if (w >= fractal().initW) return;
+    const nw = w * 3;
+    if (nw >= fractal().initW) { resetView(); } else { w = nw; }
+    scheduleRender(); updateUI();
+  };
+  container.appendChild(btnOut);
+
+  // Reset
+  const btnR = document.createElement("button");
+  btnR.className = "btn btn-reset"; btnR.id = "btnReset";
+  btnR.textContent = "↺ Reset";
+  btnR.onclick = () => { if (w >= fractal().initW) return; resetView(); scheduleRender(); updateUI(); };
+  container.appendChild(btnR);
+
+  // Size group
+  const sizeWrap = document.createElement("div");
+  sizeWrap.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap";
+  const lbl = document.createElement("span");
+  lbl.className = "size-label"; lbl.textContent = "Size:";
+  sizeWrap.appendChild(lbl);
+
+  for (const r of [400, 800, 1200, 1600, 2400, 3200, 4800, 6400]) {
+    const b = document.createElement("button");
+    b.className = "size-btn" + (r === resolution ? " active" : "");
+    b.dataset.res = r;
+    b.textContent = r;
+    b.onclick = () => { resolution = r; scheduleRender(); updateUI(); };
+    sizeWrap.appendChild(b);
+  }
+  container.appendChild(sizeWrap);
+}
+
+// ─── Canvas click → zoom in ───────────────────────────────────────────
+canvasWrap.addEventListener("click", (e) => {
+  const rect = canvasWrap.getBoundingClientRect();
+  const sx = resolution / rect.width, sy = resolution / rect.height;
+  const px = (e.clientX - rect.left) * sx;
+  const py = (e.clientY - rect.top) * sy;
+  const h = w;
+  cx = (cx - w/2) + (px / resolution) * w;
+  cy = (cy + h/2) - (py / resolution) * h;
+  w = w / 3;
+  scheduleRender(); updateUI();
+});
+
+// ─── Color controls ──────────────────────────────────────────────────
+function buildColorControls() {
+  const hueContainer = document.getElementById("hueButtons");
+  const schemeContainer = document.getElementById("schemeButtons");
+  hueContainer.innerHTML = "";
+  schemeContainer.innerHTML = "";
+
+  // Hue buttons — colored squares
+  for (const [key, h] of Object.entries(HUES)) {
+    const btn = document.createElement("button");
+    btn.className = "hue-btn" + (key === selectedHue ? " active" : "");
+    btn.dataset.hue = key;
+    btn.title = h.label;
+    // Preview color: base center hue + offset, medium saturation/lightness
+    const previewH = BASE_HUE_CENTER + h.offset;
+    const rgb = hslToRgb(previewH, 0.85, 0.45);
+    btn.style.background = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+    btn.onclick = () => { selectedHue = key; scheduleRender(); updateColorButtons(); };
+    hueContainer.appendChild(btn);
+  }
+
+  // Scheme buttons — text labels
+  for (const [key, s] of Object.entries(SCHEMES)) {
+    const btn = document.createElement("button");
+    btn.className = "scheme-btn" + (key === selectedScheme ? " active" : "");
+    btn.dataset.scheme = key;
+    btn.textContent = s.label;
+    btn.onclick = () => { selectedScheme = key; scheduleRender(); updateColorButtons(); };
+    schemeContainer.appendChild(btn);
+  }
+}
+
+function updateColorButtons() {
+  document.querySelectorAll(".hue-btn").forEach(b => b.classList.toggle("active", b.dataset.hue === selectedHue));
+  document.querySelectorAll(".scheme-btn").forEach(b => b.classList.toggle("active", b.dataset.scheme === selectedScheme));
+}
+
+// ─── Target input ─────────────────────────────────────────────────────
+targetInput.addEventListener("input", () => { updateUI(); redrawOverlays(); });
+targetInput.addEventListener("keydown", (e) => { if (e.key === "Enter") zoomToTarget(); });
+btnZoomIn.addEventListener("click", zoomToTarget);
+
+function zoomToTarget() {
+  const t = parseTarget();
+  if (!t) return;
+  cx = t.re; cy = t.im; w = w / 3;
+  scheduleRender(); updateUI();
+}
+
+// ─── Smoothing checkbox ───────────────────────────────────────────────
+smoothCheck.addEventListener("change", () => { scheduleRender(); });
+
+// ─── Init ─────────────────────────────────────────────────────────────
+buildTabs();
+buildControls();
+buildColorControls();
+updateUI();
+scheduleRender();
+</script>
+</body>
+</html>
