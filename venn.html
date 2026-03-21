@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Venn Diagram</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f4f4f4;
+  padding: 16px;
+}
+.canvas-wrap {
+  margin-bottom: 20px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.field select,
+.field input[type="text"],
+.field input[type="number"],
+.field input[type="color"] {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 14px;
+  background: #fff;
+  min-width: 0;
+}
+.field select { width: 200px; }
+.field input[type="text"] { width: 140px; }
+.field input[type="number"] { width: 70px; }
+.field input[type="color"] { width: 56px; height: 36px; padding: 2px; cursor: pointer; }
+button {
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  body { padding: 8px; }
+  .field select,
+  .field input[type="text"],
+  .field input[type="number"] {
+    font-size: 16px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="controls">
+  <div class="field">
+    <label>Circles</label>
+    <select id="count">
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Size</label>
+    <input type="text" id="size" value="2400">
+  </div>
+  <div class="field">
+    <label>&nbsp;</label>
+    <button type="button" id="apply">Apply</button>
+  </div>
+  <div class="field">
+    <label>Line width</label>
+    <input type="number" id="linewidth" value="6" min="1" step="1">
+  </div>
+  <div class="field">
+    <label>Line colour</label>
+    <input type="color" id="linecolor" value="#333333">
+  </div>
+  <div class="field">
+    <label>Label font size</label>
+    <input type="number" id="fontsize" value="48" min="8" step="1">
+  </div>
+  <div class="field">
+    <label>Label colour</label>
+    <input type="color" id="labelcolor" value="#1a1a1a">
+  </div>
+  <div class="field">
+    <label>Label A</label>
+    <input type="text" id="labelA" placeholder="Set A" value="A">
+  </div>
+  <div class="field">
+    <label>Label B</label>
+    <input type="text" id="labelB" placeholder="Set B" value="B">
+  </div>
+  <div class="field">
+    <label>Label C</label>
+    <input type="text" id="labelC" placeholder="Set C" value="C">
+  </div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+
+  /** Longest contiguous run of true on a circle (handles wraparound). */
+  function longestOutsideRun(ok, n) {
+    var dbl = ok.concat(ok);
+    var bestLen = 0;
+    var bestStart = 0;
+    var s, i, len;
+    for (s = 0; s < n; s++) {
+      len = 0;
+      for (i = 0; i < n && dbl[s + i]; i++) {
+        len++;
+      }
+      if (len > bestLen) {
+        bestLen = len;
+        bestStart = s % n;
+      }
+    }
+    return { start: bestStart, len: bestLen };
+  }
+
+  /**
+   * Angular span (rad) and midpoint angle where points on a circle of radius rSample
+   * are outside all disks in `others`. Sample on circle boundary (not rText) for stable sectors.
+   */
+  function outsideLabelArc(cx0, cy0, rSample, others) {
+    var steps = 720;
+    var ok = [];
+    var i;
+    for (i = 0; i < steps; i++) {
+      var t = (i / steps) * Math.PI * 2;
+      var px = cx0 + rSample * Math.cos(t);
+      var py = cy0 + rSample * Math.sin(t);
+      var outside = true;
+      for (var o = 0; o < others.length; o++) {
+        var oc = others[o];
+        var dx = px - oc.x;
+        var dy = py - oc.y;
+        if (dx * dx + dy * dy < oc.r * oc.r - 1e-3) {
+          outside = false;
+          break;
+        }
+      }
+      ok[i] = outside;
+    }
+    var run = longestOutsideRun(ok, steps);
+    if (run.len < 2) {
+      var ox = 0;
+      var oy = 0;
+      for (var q = 0; q < others.length; q++) {
+        ox += cx0 - others[q].x;
+        oy += cy0 - others[q].y;
+      }
+      if (ox === 0 && oy === 0) {
+        ox = 1;
+      }
+      var away = Math.atan2(oy, ox);
+      var wedge = Math.PI / 2.5;
+      return { mid: away, span: wedge };
+    }
+    var spanRad = (run.len / steps) * Math.PI * 2;
+    var midStep = run.start + run.len / 2;
+    var mid = (midStep / steps) * Math.PI * 2;
+    return { mid: mid, span: spanRad };
+  }
+
+  /** Draw text along circular arc; letters follow curvature, kept upright when possible. */
+  function drawTextAlongArc(text, cx, cy, rText, mid, span, fontSize, fillColor) {
+    if (!text || !String(text).trim()) return;
+    text = String(text).trim();
+    if (rText < 1 || span <= 0) return;
+
+    ctx.save();
+    ctx.font = '600 ' + fontSize + 'px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = fillColor;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+
+    var widths = [];
+    var total = 0;
+    var j;
+    for (j = 0; j < text.length; j++) {
+      var wch = ctx.measureText(text[j]).width;
+      widths.push(wch);
+      total += wch;
+    }
+    var letterGap = fontSize * 0.08;
+    total += letterGap * Math.max(0, text.length - 1);
+
+    var arcLen = rText * span;
+    var squeeze = total > arcLen * 0.98 ? (arcLen * 0.98) / total : 1;
+
+    var totalAngle = (total * squeeze) / rText;
+    var startAngle = mid - totalAngle / 2;
+
+    /** Tangent rotation so glyphs are upright: local (0,-1) → canvas (sin r, -cos r); prefer max cos(r) ≈ screen-up. */
+    function letterRotation(ang) {
+      var rPlus = ang + Math.PI / 2;
+      var rMinus = ang - Math.PI / 2;
+      var cPlus = Math.cos(rPlus);
+      var cMinus = Math.cos(rMinus);
+      if (cPlus > cMinus + 1e-9) return rPlus;
+      if (cMinus > cPlus + 1e-9) return rMinus;
+      return rPlus;
+    }
+
+    var pos = 0;
+    for (j = 0; j < text.length; j++) {
+      var chW = widths[j] * squeeze;
+      var ang = startAngle + (pos + chW / 2) / rText;
+      pos += chW + (j < text.length - 1 ? letterGap * squeeze : 0);
+
+      var x = cx + rText * Math.cos(ang);
+      var y = cy + rText * Math.sin(ang);
+      var rot = letterRotation(ang);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.fillText(text[j], 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  /** Fit 2- or 3-set Venn in box [0,w]×[0,h] with margin; returns circles + pad for labels. */
+  function layoutVenn(count, w, h, lw, fontSize) {
+    var pad = lw / 2 + fontSize * 0.5;
+    var labelBleed = fontSize * 0.55;
+    var edge = lw / 2 + 8 + labelBleed;
+    var innerW = Math.max(50, w - 2 * edge);
+    var innerH = Math.max(50, h - 2 * edge);
+
+    if (count === 2) {
+      var kSep = 0.88;
+      var rrFromW = (innerW - 2 * (pad + labelBleed)) / (kSep + 2);
+      var rrFromH = (innerH - 2 * (pad + labelBleed)) / 2;
+      var rr = Math.max(20, Math.min(rrFromW, rrFromH) * 0.98);
+      var sep = rr * kSep;
+      return {
+        circles: [
+          { x: w / 2 - sep / 2, y: h / 2, r: rr },
+          { x: w / 2 + sep / 2, y: h / 2, r: rr }
+        ],
+        pad: pad
+      };
+    }
+
+    var kDc = 0.78;
+    var innerMin = Math.min(innerW, innerH);
+    var r3 = Math.max(
+      20,
+      ((innerMin / 2 - pad - labelBleed) / (kDc + 1)) * 0.98
+    );
+    var dc = r3 * kDc;
+    var circles = [];
+    var k;
+    for (k = 0; k < 3; k++) {
+      var ang = -Math.PI / 2 + k * (2 * Math.PI / 3);
+      circles.push({
+        x: w / 2 + dc * Math.cos(ang),
+        y: h / 2 + dc * Math.sin(ang),
+        r: r3
+      });
+    }
+    return { circles: circles, pad: pad };
+  }
+
+  function draw() {
+    var count = parseInt(document.getElementById('count').value, 10) || 2;
+    var W = parseInt(document.getElementById('size').value, 10) || 2400;
+    var lw = Math.max(0.5, parseFloat(document.getElementById('linewidth').value) || 6);
+    var lineColor = document.getElementById('linecolor').value || '#333';
+    var fontSize = Math.max(4, parseFloat(document.getElementById('fontsize').value) || 48);
+    var labelColor = document.getElementById('labelcolor').value || '#1a1a1a';
+    var labA = document.getElementById('labelA').value;
+    var labB = document.getElementById('labelB').value;
+    var labC = document.getElementById('labelC').value;
+
+    canvas.width = W;
+    canvas.height = W;
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, W);
+
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = lw;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    var labels = count === 2 ? [labA, labB] : [labA, labB, labC];
+    var layout = layoutVenn(count, W, W, lw, fontSize);
+    var circles = layout.circles;
+    var pad = layout.pad;
+
+    var idx;
+    for (idx = 0; idx < circles.length; idx++) {
+      var c = circles[idx];
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    var fixedSpan2 = Math.PI / 2;
+    var fixedSpan3 = Math.PI / 2;
+
+    for (idx = 0; idx < circles.length; idx++) {
+      var ci = circles[idx];
+      var others = [];
+      var oi;
+      for (oi = 0; oi < circles.length; oi++) {
+        if (oi !== idx) others.push(circles[oi]);
+      }
+      var rText = ci.r + pad;
+      var rArc = Math.max(ci.r + lw + 2, rText - fontSize * 0.35);
+      var mid;
+      var span;
+
+      if (count === 2) {
+        /* Left circle: left-top, 30° CCW from vertical. Right: right-top, 30° CW from vertical. */
+        if (idx === 0) {
+          mid = -Math.PI / 2 - Math.PI / 6;
+          span = fixedSpan2;
+        } else {
+          mid = -Math.PI / 2 + Math.PI / 6;
+          span = fixedSpan2;
+        }
+      } else {
+        /* 3 circles: layout order k=0 top, k=1 bottom-right, k=2 bottom-left (see layoutVenn). */
+        if (idx === 0) {
+          var arcTop = outsideLabelArc(ci.x, ci.y, rArc, others);
+          mid = arcTop.mid;
+          span = arcTop.span;
+        } else if (idx === 1) {
+          /* Bottom-right circle: 45° CW from vertical → -π/2 + π/4 */
+          mid = -Math.PI / 2 + Math.PI / 4;
+          span = fixedSpan3;
+        } else {
+          /* Bottom-left circle: 45° CCW from vertical → -π/2 - π/4 */
+          mid = -Math.PI / 2 - Math.PI / 4;
+          span = fixedSpan3;
+        }
+      }
+
+      drawTextAlongArc(labels[idx], ci.x, ci.y, rText, mid, span, fontSize, labelColor);
+    }
+  }
+
+  document.getElementById('apply').addEventListener('click', draw);
+  document.getElementById('count').addEventListener('change', draw);
+  document.getElementById('linewidth').addEventListener('input', draw);
+  document.getElementById('linewidth').addEventListener('change', draw);
+  document.getElementById('linecolor').addEventListener('input', draw);
+  document.getElementById('linecolor').addEventListener('change', draw);
+  document.getElementById('fontsize').addEventListener('input', draw);
+  document.getElementById('fontsize').addEventListener('change', draw);
+  document.getElementById('labelcolor').addEventListener('input', draw);
+  document.getElementById('labelcolor').addEventListener('change', draw);
+  document.getElementById('labelA').addEventListener('input', draw);
+  document.getElementById('labelB').addEventListener('input', draw);
+  document.getElementById('labelC').addEventListener('input', draw);
+
+  draw();
+})();
+</script>
+</body>
+</html>

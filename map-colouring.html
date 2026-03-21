@@ -90,6 +90,7 @@ button {
       <option value="circle6center">Circle 6 parts + center</option>
       <option value="squareCircles">Square with nested circles</option>
       <option value="candy">Candy</option>
+      <option value="concentricComplex">Concentric: 3 sectors + plain ring + 3 ring splits</option>
     </select>
   </div>
   <div class="field">
@@ -153,6 +154,9 @@ button {
           break;
         case 'candy':
           drawCandy(cx, cy, r, lw, margin, w, h);
+          break;
+        case 'concentricComplex':
+          drawConcentricComplex(cx, cy, r, lw);
           break;
         default:
           break;
@@ -314,6 +318,53 @@ button {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
+  }
+
+  /** Inner disk: 3 sectors. Then undivided annulus. Then 3 outer annuli, each split into 2–5 angular parts (here 2, 3, 5). All concentric. */
+  function drawConcentricComplex(cx, cy, R, lw) {
+    var r1 = R * 0.22;
+    var r2 = R * 0.36;
+    var r3 = R * 0.52;
+    var r4 = R * 0.70;
+    var r5 = R;
+    var partsOuter = [2, 3, 5];
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (var i = 0; i < 3; i++) {
+      var a0 = -Math.PI / 2 + i * 2 * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r1 * Math.cos(a0), cy + r1 * Math.sin(a0));
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    var rInner = r2;
+    var radii = [r2, r3, r4, r5];
+    for (var ring = 0; ring < 3; ring++) {
+      var ra = radii[ring];
+      var rb = radii[ring + 1];
+      var n = partsOuter[ring];
+      for (var j = 0; j < n; j++) {
+        var a = -Math.PI / 2 + j * 2 * Math.PI / n;
+        ctx.beginPath();
+        ctx.moveTo(cx + ra * Math.cos(a), cy + ra * Math.sin(a));
+        ctx.lineTo(cx + rb * Math.cos(a), cy + rb * Math.sin(a));
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(cx, cy, rb, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   function drawCirclePieCenter(cx, cy, r, n, lw) {
